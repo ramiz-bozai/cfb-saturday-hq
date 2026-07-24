@@ -13,38 +13,27 @@
 import sys
 from pathlib import Path
 
-# Repo root on path whether run from bundle sync or Git folder
-for candidate in [
-    Path.cwd(),
-    Path.cwd().parent,
-    Path("/Workspace/Users/") ,
-]:
-    pass
+# Edit these constants if needed (no notebook widgets).
+REPO_PATH = ""  # e.g. "/Workspace/Users/you@company.com/saturday-hq"; blank => auto-detect
+HISTORY_START_YEAR = 2015
+CURRENT_SEASON = 2026
+SECRET_SCOPE = "saturday_hq"
+SECRET_KEY = "cfbd_api_key"
 
-# Prefer explicit repo path widget
-dbutils.widgets.text("repo_path", "")
-dbutils.widgets.text("catalog", "saturday_hq")
-dbutils.widgets.text("secret_scope", "saturday_hq")
-dbutils.widgets.text("secret_key", "cfbd_api_key")
-dbutils.widgets.text("history_start_year", "2015")
-dbutils.widgets.text("current_season", "2026")
-
-repo_path = dbutils.widgets.get("repo_path").strip()
-if repo_path:
-    sys.path.insert(0, f"{repo_path}/src")
+if REPO_PATH.strip():
+    sys.path.insert(0, f"{REPO_PATH.strip()}/src")
 else:
-    # Common bundle layout: notebooks/ next to src/
+    # Common layouts: notebooks/ next to src/, or cwd is repo root
     sys.path.insert(0, str(Path.cwd().parent / "src"))
     sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import SaturdayHQConfig, config_from_widgets
+from saturday_hq.config import SaturdayHQConfig
 
-config = config_from_widgets(
-    catalog=dbutils.widgets.get("catalog"),
-    history_start_year=int(dbutils.widgets.get("history_start_year")),
-    current_season=int(dbutils.widgets.get("current_season")),
-    secret_scope=dbutils.widgets.get("secret_scope"),
-    secret_key=dbutils.widgets.get("secret_key"),
+config = SaturdayHQConfig(
+    history_start_year=HISTORY_START_YEAR,
+    current_season=CURRENT_SEASON,
+    secret_scope=SECRET_SCOPE,
+    secret_key=SECRET_KEY,
 )
 print(config)
 
@@ -59,7 +48,7 @@ for schema in [
     config.schema_ml,
     config.schema_app,
 ]:
-    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+    spark.sql(f"CREATE SCHEMA IF NOT EXISTS {config.catalog}.{schema}")
 
 spark.sql(
     f"CREATE VOLUME IF NOT EXISTS {config.catalog}.{config.schema_bronze}.{config.volume_name}"
@@ -83,8 +72,6 @@ assert api_key, "API key secret is empty"
 print("CFBD secret found (value not printed).")
 
 # COMMAND ----------
-
-from pathlib import Path
 
 for sub in [config.historical_path, config.incremental_path, config.manual_path]:
     Path(sub).mkdir(parents=True, exist_ok=True)
