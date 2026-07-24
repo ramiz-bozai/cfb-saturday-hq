@@ -58,12 +58,12 @@ DISCLAIMER_CFP = (
 
 @dataclass(frozen=True)
 class SaturdayHQConfig:
-    catalog: str = "saturday_hq"
-    schema_bronze: str = "bronze"
-    schema_silver: str = "silver"
-    schema_gold: str = "gold"
-    schema_ml: str = "ml"
-    schema_app: str = "app"
+    catalog: str = "cfb_saturday_hq"
+    schema_bronze: str = "cfb_bronze"
+    schema_silver: str = "cfb_silver"
+    schema_gold: str = "cfb_gold"
+    schema_ml: str = "cfb_ml"
+    schema_app: str = "cfb_app"
     volume_name: str = "cfbd_landing"
     secret_scope: str = "saturday_hq"
     secret_key: str = "cfbd_api_key"
