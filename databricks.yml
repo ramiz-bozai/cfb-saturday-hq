@@ -13,16 +13,16 @@ targets:
       # host: https://YOUR_WORKSPACE.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: saturday_hq
+      catalog: cfb_saturday_hq
       history_start_year: "2015"
       current_season: "2026"
-      secret_scope: saturday_hq
+      secret_scope: cfb_saturday_hq
       secret_key: cfbd_api_key
 
 variables:
   catalog:
     description: Unity Catalog name for Saturday HQ
-    default: saturday_hq
+    default: cfb_saturday_hq
   history_start_year:
     description: First season to backfill
     default: "2015"
@@ -31,7 +31,7 @@ variables:
     default: "2026"
   secret_scope:
     description: Secret scope for CFBD API key
-    default: saturday_hq
+    default: cfb_saturday_hq
   secret_key:
     description: Secret key name for CFBD API key
     default: cfbd_api_key

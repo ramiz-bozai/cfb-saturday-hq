@@ -5,7 +5,6 @@ from saturday_hq.config import (
     DISCLAIMER_MARKET,
     HISTORICAL_DOMAINS,
     SaturdayHQConfig,
-    config_from_widgets,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "DISCLAIMER_MARKET",
     "HISTORICAL_DOMAINS",
     "SaturdayHQConfig",
-    "config_from_widgets",
 ]

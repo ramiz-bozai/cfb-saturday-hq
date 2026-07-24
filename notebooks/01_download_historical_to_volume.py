@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Step 5: Download historical CFBD data into Volume
-# MAGIC Writes JSONL under `/Volumes/<catalog>/bronze/cfbd_landing/historical/...`
+# MAGIC # 01 — Download historical CFBD data into Volume
+# MAGIC Writes JSONL under `/Volumes/cfb_saturday_hq/cfb_bronze/cfbd_landing/historical/...`
 # MAGIC Uses the API once for backfill; daily refresh uses the incremental path.
 
 # COMMAND ----------
@@ -9,34 +9,33 @@
 import sys
 from pathlib import Path
 
-dbutils.widgets.text("repo_path", "")
-dbutils.widgets.text("catalog", "saturday_hq")
-dbutils.widgets.text("secret_scope", "saturday_hq")
-dbutils.widgets.text("secret_key", "cfbd_api_key")
-dbutils.widgets.text("history_start_year", "2015")
-dbutils.widgets.text("current_season", "2026")
-dbutils.widgets.text("end_year", "")  # blank => current_season
-dbutils.widgets.text("domains", "")  # blank => all HISTORICAL_DOMAINS
+# Edit these constants if needed (no notebook widgets).
+REPO_PATH = ""
+HISTORY_START_YEAR = 2015
+CURRENT_SEASON = 2026
+END_YEAR = None  # None => CURRENT_SEASON
+DOMAINS = None  # None => all HISTORICAL_DOMAINS; or e.g. ["teams_fbs", "games", "sp_plus"]
+SECRET_SCOPE = "cfb_saturday_hq"
+SECRET_KEY = "cfbd_api_key"
 
-repo_path = dbutils.widgets.get("repo_path").strip()
-sys.path.insert(0, f"{repo_path}/src" if repo_path else str(Path.cwd().parent / "src"))
+if REPO_PATH.strip():
+    sys.path.insert(0, f"{REPO_PATH.strip()}/src")
+else:
+    sys.path.insert(0, str(Path.cwd().parent / "src"))
+    sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import HISTORICAL_DOMAINS, config_from_widgets
+from saturday_hq.config import HISTORICAL_DOMAINS, SaturdayHQConfig
 from saturday_hq.cfbd_client import CFBDClient
 from saturday_hq.ingest.download_historical import download_historical_to_volume
 
-config = config_from_widgets(
-    catalog=dbutils.widgets.get("catalog"),
-    history_start_year=int(dbutils.widgets.get("history_start_year")),
-    current_season=int(dbutils.widgets.get("current_season")),
-    secret_scope=dbutils.widgets.get("secret_scope"),
-    secret_key=dbutils.widgets.get("secret_key"),
+config = SaturdayHQConfig(
+    history_start_year=HISTORY_START_YEAR,
+    current_season=CURRENT_SEASON,
+    secret_scope=SECRET_SCOPE,
+    secret_key=SECRET_KEY,
 )
-
-end_year_raw = dbutils.widgets.get("end_year").strip()
-end_year = int(end_year_raw) if end_year_raw else config.current_season
-domains_raw = dbutils.widgets.get("domains").strip()
-domains = [d.strip() for d in domains_raw.split(",") if d.strip()] or list(HISTORICAL_DOMAINS)
+end_year = END_YEAR if END_YEAR is not None else config.current_season
+domains = list(DOMAINS) if DOMAINS else list(HISTORICAL_DOMAINS)
 
 api_key = dbutils.secrets.get(config.secret_scope, config.secret_key)
 client = CFBDClient(api_key, config)

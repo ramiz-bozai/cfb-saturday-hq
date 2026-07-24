@@ -1,32 +1,32 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Step 10 + 14: Preseason ratings, CFP projections, weekly briefs
+# MAGIC # 06 — Preseason ratings, CFP projections, weekly briefs
 
 # COMMAND ----------
 
 import sys
 from pathlib import Path
 
-dbutils.widgets.text("repo_path", "")
-dbutils.widgets.text("catalog", "saturday_hq")
-dbutils.widgets.text("current_season", "2026")
-dbutils.widgets.text("n_sims", "2000")
-dbutils.widgets.text("week", "")
+# Edit these constants if needed (no notebook widgets).
+REPO_PATH = ""
+CURRENT_SEASON = 2026
+N_SIMS = 2000
+WEEK = None  # None => latest available week in data
 
-repo_path = dbutils.widgets.get("repo_path").strip()
-sys.path.insert(0, f"{repo_path}/src" if repo_path else str(Path.cwd().parent / "src"))
+if REPO_PATH.strip():
+    sys.path.insert(0, f"{REPO_PATH.strip()}/src")
+else:
+    sys.path.insert(0, str(Path.cwd().parent / "src"))
+    sys.path.insert(0, str(Path.cwd() / "src"))
 
 from pyspark.sql import functions as F
 
-from saturday_hq.config import config_from_widgets
+from saturday_hq.config import SaturdayHQConfig
 from saturday_hq.projections.simulator import build_preseason_ratings, simulate_season
 from saturday_hq.briefs.generate import generate_weekly_briefs
 from saturday_hq.cfp_rules import CFP_RULES_TEXT
 
-config = config_from_widgets(
-    catalog=dbutils.widgets.get("catalog"),
-    current_season=int(dbutils.widgets.get("current_season")),
-)
+config = SaturdayHQConfig(current_season=CURRENT_SEASON)
 print(CFP_RULES_TEXT[:500], "...")
 
 # COMMAND ----------
@@ -39,7 +39,7 @@ display(spark.table(pre_table).orderBy("preseason_rank").limit(25))
 proj = simulate_season(
     config,
     season=config.current_season,
-    n_sims=int(dbutils.widgets.get("n_sims")),
+    n_sims=N_SIMS,
     use_model_probs=True,
 )
 print(proj)
@@ -51,7 +51,5 @@ display(
 
 # COMMAND ----------
 
-week_raw = dbutils.widgets.get("week").strip()
-week = int(week_raw) if week_raw else None
-brief_table = generate_weekly_briefs(config, season=config.current_season, week=week)
+brief_table = generate_weekly_briefs(config, season=config.current_season, week=WEEK)
 display(spark.table(brief_table).limit(50))

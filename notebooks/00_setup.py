@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Step 0–2: Saturday HQ setup
-# MAGIC Creates UC schemas, volume, and verifies CFBD secret access.
+# MAGIC # 00 — Saturday HQ setup
+# MAGIC Creates UC catalog/schemas, volume folders, and verifies CFBD secret access.
 
 # COMMAND ----------
 
@@ -17,13 +17,12 @@ from pathlib import Path
 REPO_PATH = ""  # e.g. "/Workspace/Users/you@company.com/saturday-hq"; blank => auto-detect
 HISTORY_START_YEAR = 2015
 CURRENT_SEASON = 2026
-SECRET_SCOPE = "saturday_hq"
+SECRET_SCOPE = "cfb_saturday_hq"
 SECRET_KEY = "cfbd_api_key"
 
 if REPO_PATH.strip():
     sys.path.insert(0, f"{REPO_PATH.strip()}/src")
 else:
-    # Common layouts: notebooks/ next to src/, or cwd is repo root
     sys.path.insert(0, str(Path.cwd().parent / "src"))
     sys.path.insert(0, str(Path.cwd() / "src"))
 
@@ -61,8 +60,8 @@ print("Volume path:", config.volume_path)
 # MAGIC ## Secret check
 # MAGIC Create the secret once in a terminal / Cloud Shell:
 # MAGIC ```bash
-# MAGIC databricks secrets create-scope saturday_hq
-# MAGIC databricks secrets put-secret saturday_hq cfbd_api_key
+# MAGIC databricks secrets create-scope cfb_saturday_hq
+# MAGIC databricks secrets put-secret cfb_saturday_hq cfbd_api_key
 # MAGIC ```
 
 # COMMAND ----------
@@ -93,8 +92,8 @@ spark.sql(
     f"""
 CREATE OR REPLACE TABLE {config.app('demo_profiles')} AS
 SELECT * FROM VALUES
-  ('sec_fan', 'SEC Fan', array('Alabama','Georgia','Texas','LSU')),
-  ('big_ten_fan', 'Big Ten Fan', array('Ohio State','Oregon','Michigan','Penn State')),
+  ('sec_fan', 'SEC Fan', array('Alabama','Georgia','Oklahoma','Texas','LSU')),
+  ('big_ten_fan', 'Big Ten Fan', array('Ohio State','Indiana','Oregon','Michigan','Penn State')),
   ('underdog', 'G6 Watcher', array('Tulane','Boise State','James Madison','UNLV'))
 AS t(profile_id, display_name, teams)
 """

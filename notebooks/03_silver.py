@@ -1,22 +1,25 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Step 7: Silver transforms
+# MAGIC # 03 — Silver transforms
 
 # COMMAND ----------
 
 import sys
 from pathlib import Path
 
-dbutils.widgets.text("repo_path", "")
-dbutils.widgets.text("catalog", "saturday_hq")
+# Edit these constants if needed (no notebook widgets).
+REPO_PATH = ""
 
-repo_path = dbutils.widgets.get("repo_path").strip()
-sys.path.insert(0, f"{repo_path}/src" if repo_path else str(Path.cwd().parent / "src"))
+if REPO_PATH.strip():
+    sys.path.insert(0, f"{REPO_PATH.strip()}/src")
+else:
+    sys.path.insert(0, str(Path.cwd().parent / "src"))
+    sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import config_from_widgets
+from saturday_hq.config import SaturdayHQConfig
 from saturday_hq.transform.silver import build_all_silver
 
-config = config_from_widgets(catalog=dbutils.widgets.get("catalog"))
+config = SaturdayHQConfig()
 results = build_all_silver(config)
 display(spark.createDataFrame(results))
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 POWER4_CANONICAL = {"ACC", "Big Ten", "Big 12", "SEC"}
@@ -65,7 +64,7 @@ class SaturdayHQConfig:
     schema_ml: str = "cfb_ml"
     schema_app: str = "cfb_app"
     volume_name: str = "cfbd_landing"
-    secret_scope: str = "saturday_hq"
+    secret_scope: str = "cfb_saturday_hq"
     secret_key: str = "cfbd_api_key"
     history_start_year: int = 2015
     current_season: int = 2026
@@ -107,19 +106,3 @@ class SaturdayHQConfig:
     def app(self, name: str) -> str:
         return self.table(self.schema_app, name)
 
-
-def config_from_widgets(
-    catalog: Optional[str] = None,
-    history_start_year: Optional[int] = None,
-    current_season: Optional[int] = None,
-    secret_scope: Optional[str] = None,
-    secret_key: Optional[str] = None,
-) -> SaturdayHQConfig:
-    base = SaturdayHQConfig()
-    return SaturdayHQConfig(
-        catalog=catalog or base.catalog,
-        history_start_year=int(history_start_year or base.history_start_year),
-        current_season=int(current_season or base.current_season),
-        secret_scope=secret_scope or base.secret_scope,
-        secret_key=secret_key or base.secret_key,
-    )
