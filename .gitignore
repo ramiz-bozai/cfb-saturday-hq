@@ -1,0 +1,11 @@
+.databricks/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.mlflow/
+*.egg-info/
+dist/
+build/
+.env
+/docs/STEP_BY_STEP.md
