@@ -10,12 +10,6 @@ resources:
         - task_key: daily_refresh
           notebook_task:
             notebook_path: ../notebooks/07_daily_refresh.py
-            base_parameters:
-              catalog: ${var.catalog}
-              current_season: ${var.current_season}
-              secret_scope: ${var.secret_scope}
-              secret_key: ${var.secret_key}
-              model_name: saturday_hq_matchup
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
@@ -27,12 +21,6 @@ resources:
         - task_key: download_historical
           notebook_task:
             notebook_path: ../notebooks/01_download_historical_to_volume.py
-            base_parameters:
-              catalog: ${var.catalog}
-              history_start_year: ${var.history_start_year}
-              current_season: ${var.current_season}
-              secret_scope: ${var.secret_scope}
-              secret_key: ${var.secret_key}
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
@@ -42,9 +30,6 @@ resources:
             - task_key: download_historical
           notebook_task:
             notebook_path: ../notebooks/02_bronze_from_volume.py
-            base_parameters:
-              catalog: ${var.catalog}
-              mode: historical
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
@@ -54,8 +39,6 @@ resources:
             - task_key: bronze
           notebook_task:
             notebook_path: ../notebooks/03_silver.py
-            base_parameters:
-              catalog: ${var.catalog}
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
@@ -65,8 +48,6 @@ resources:
             - task_key: silver
           notebook_task:
             notebook_path: ../notebooks/04_gold.py
-            base_parameters:
-              catalog: ${var.catalog}
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge

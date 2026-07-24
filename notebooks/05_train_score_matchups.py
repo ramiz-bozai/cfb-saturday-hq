@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # Step 11–12: Train matchup model, score slate, build matchup cards
+# MAGIC # 05 — Train matchup model, score slate, build matchup cards
 # MAGIC Lines are shown for model-vs-market comparison and are **not** training features.
 
 # COMMAND ----------
@@ -8,27 +8,26 @@
 import sys
 from pathlib import Path
 
-dbutils.widgets.text("repo_path", "")
-dbutils.widgets.text("catalog", "saturday_hq")
-dbutils.widgets.text("current_season", "2026")
-dbutils.widgets.text("model_name", "saturday_hq_matchup")
+# Edit these constants if needed (no notebook widgets).
+REPO_PATH = ""
+CURRENT_SEASON = 2026
+MODEL_NAME = "saturday_hq_matchup"
 
-repo_path = dbutils.widgets.get("repo_path").strip()
-sys.path.insert(0, f"{repo_path}/src" if repo_path else str(Path.cwd().parent / "src"))
+if REPO_PATH.strip():
+    sys.path.insert(0, f"{REPO_PATH.strip()}/src")
+else:
+    sys.path.insert(0, str(Path.cwd().parent / "src"))
+    sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import config_from_widgets
+from saturday_hq.config import SaturdayHQConfig
 from saturday_hq.ml.train import train_and_register, score_games
 from saturday_hq.transform.gold import build_gold_matchup_card
 
-config = config_from_widgets(
-    catalog=dbutils.widgets.get("catalog"),
-    current_season=int(dbutils.widgets.get("current_season")),
-)
-model_name = dbutils.widgets.get("model_name")
+config = SaturdayHQConfig(current_season=CURRENT_SEASON)
 
 # COMMAND ----------
 
-summary = train_and_register(config, model_name=model_name)
+summary = train_and_register(config, model_name=MODEL_NAME)
 print(summary)
 
 # COMMAND ----------
@@ -36,7 +35,7 @@ print(summary)
 # Score historical + current season for dashboards / calibration / slate
 pred_table = score_games(
     config,
-    model_name=model_name,
+    model_name=MODEL_NAME,
     seasons=list(range(config.history_start_year, config.current_season + 1)),
 )
 print("wrote", pred_table)
