@@ -14,8 +14,6 @@ targets:
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
       catalog: cfb_saturday_hq
-      history_start_year: "2015"
-      current_season: "2026"
       secret_scope: cfb_saturday_hq
       secret_key: cfbd_api_key
 
@@ -23,12 +21,6 @@ variables:
   catalog:
     description: Unity Catalog name for Saturday HQ
     default: cfb_saturday_hq
-  history_start_year:
-    description: First season to backfill
-    default: "2015"
-  current_season:
-    description: Current / upcoming season year
-    default: "2026"
   secret_scope:
     description: Secret scope for CFBD API key
     default: cfb_saturday_hq

@@ -10,7 +10,7 @@ CREATE SCHEMA IF NOT EXISTS cfb_saturday_hq.cfb_gold;
 CREATE SCHEMA IF NOT EXISTS cfb_saturday_hq.cfb_ml;
 CREATE SCHEMA IF NOT EXISTS cfb_saturday_hq.cfb_app;
 
--- Landing volume for historical JSONL downloads and daily incremental drops
+-- Landing volume for historical JSONL downloads and weekly incremental drops
 CREATE VOLUME IF NOT EXISTS cfb_bronze.cfbd_landing;
 
 -- Demo profiles for the App (My Teams)
