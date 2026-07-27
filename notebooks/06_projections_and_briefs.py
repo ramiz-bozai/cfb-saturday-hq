@@ -9,7 +9,7 @@ from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""
-CURRENT_SEASON = 2026
+CURRENT_SEASON = None  # None => derived from today's date; set an int to pin a season
 N_SIMS = 2000
 WEEK = None  # None => latest available week in data
 
@@ -21,12 +21,13 @@ else:
 
 from pyspark.sql import functions as F
 
-from saturday_hq.config import SaturdayHQConfig
+from saturday_hq.config import SaturdayHQConfig, current_cfb_season
 from saturday_hq.projections.simulator import build_preseason_ratings, simulate_season
 from saturday_hq.briefs.generate import generate_weekly_briefs
 from saturday_hq.cfp_rules import CFP_RULES_TEXT
 
-config = SaturdayHQConfig(current_season=CURRENT_SEASON)
+config = SaturdayHQConfig(current_season=CURRENT_SEASON or current_cfb_season())
+print("current season:", config.current_season)
 print(CFP_RULES_TEXT[:500], "...")
 
 # COMMAND ----------

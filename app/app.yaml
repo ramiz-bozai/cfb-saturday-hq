@@ -11,4 +11,4 @@ command: [
 
 env:
   - name: SATURDAY_HQ_CATALOG
-    value: saturday_hq
+    value: cfb_saturday_hq

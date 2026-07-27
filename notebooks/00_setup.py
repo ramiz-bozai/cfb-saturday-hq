@@ -16,7 +16,7 @@ from pathlib import Path
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""  # e.g. "/Workspace/Users/you@company.com/saturday-hq"; blank => auto-detect
 HISTORY_START_YEAR = 2015
-CURRENT_SEASON = 2026
+CURRENT_SEASON = None  # None => derived from today's date; set an int to pin a season
 SECRET_SCOPE = "cfb_saturday_hq"
 SECRET_KEY = "cfbd_api_key"
 
@@ -26,14 +26,15 @@ else:
     sys.path.insert(0, str(Path.cwd().parent / "src"))
     sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import SaturdayHQConfig
+from saturday_hq.config import SaturdayHQConfig, current_cfb_season
 
 config = SaturdayHQConfig(
     history_start_year=HISTORY_START_YEAR,
-    current_season=CURRENT_SEASON,
+    current_season=CURRENT_SEASON or current_cfb_season(),
     secret_scope=SECRET_SCOPE,
     secret_key=SECRET_KEY,
 )
+print("current season:", config.current_season)
 print(config)
 
 # COMMAND ----------

@@ -10,8 +10,9 @@
 | Play-by-play | Out of scope for v1 |
 | Audience | Demo-able / clean |
 | Historical load | Download files into a Unity Catalog **Volume**, then load bronze from Volume |
-| Ongoing refresh | CFBD **API** daily |
-| Refresh SLA | Daily |
+| Ongoing refresh | CFBD **API** weekly during the season |
+| Refresh SLA | Weekly (Sunday morning ET, after the Saturday slate) |
+| Current season | Derived from today's date; rolls over in August |
 | CFP logic | Published 2026 12-team rules; model ranking is a stand-in for committee rank |
 
 ## Disclaimers (show in App + Dashboards)

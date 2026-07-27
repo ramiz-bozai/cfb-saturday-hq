@@ -5,6 +5,7 @@ from saturday_hq.config import (
     DISCLAIMER_MARKET,
     HISTORICAL_DOMAINS,
     SaturdayHQConfig,
+    current_cfb_season,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "DISCLAIMER_MARKET",
     "HISTORICAL_DOMAINS",
     "SaturdayHQConfig",
+    "current_cfb_season",
 ]

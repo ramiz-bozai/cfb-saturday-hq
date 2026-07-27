@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""
-CURRENT_SEASON = 2026
+CURRENT_SEASON = None  # None => derived from today's date; set an int to pin a season
 MODEL_NAME = "saturday_hq_matchup"
 
 if REPO_PATH.strip():
@@ -19,11 +19,12 @@ else:
     sys.path.insert(0, str(Path.cwd().parent / "src"))
     sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import SaturdayHQConfig
+from saturday_hq.config import SaturdayHQConfig, current_cfb_season
 from saturday_hq.ml.train import train_and_register, score_games
 from saturday_hq.transform.gold import build_gold_matchup_card
 
-config = SaturdayHQConfig(current_season=CURRENT_SEASON)
+config = SaturdayHQConfig(current_season=CURRENT_SEASON or current_cfb_season())
+print("current season:", config.current_season)
 
 # COMMAND ----------
 

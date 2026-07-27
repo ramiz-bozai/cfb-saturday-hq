@@ -4,7 +4,7 @@ FBS college football intelligence on Databricks using [CollegeFootballData](http
 
 ## What it is
 - Historical CFBD data downloaded into a Unity Catalog **Volume**, then loaded to bronze
-- Daily **API** refresh into Volume `incremental/`
+- Weekly in-season **API** refresh into Volume `incremental/`
 - Silver/gold marts with **SP+** and **PPA** as first-class metrics
 - Matchup model that does **not** train on betting lines
 - UI compares **model vs market**
@@ -30,7 +30,7 @@ cfb-saturday-hq/
 ## Quick command reminders
 ```bash
 cd /Users/ramiz.bozai/cfb-saturday-hq
-databricks secrets create-scope saturday_hq
-databricks secrets put-secret saturday_hq cfbd_api_key
+databricks secrets create-scope cfb_saturday_hq
+databricks secrets put-secret cfb_saturday_hq cfbd_api_key
 databricks bundle deploy -t dev   # after setting workspace host
 ```

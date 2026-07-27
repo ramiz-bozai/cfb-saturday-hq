@@ -1,15 +1,16 @@
 resources:
   jobs:
-    saturday_hq_daily:
-      name: saturday-hq-daily-refresh
+    saturday_hq_weekly:
+      name: saturday-hq-weekly-refresh
       schedule:
-        quartz_cron_expression: "0 0 10 * * ?"
+        # Sundays 10:00 ET, after the Saturday slate is final
+        quartz_cron_expression: "0 0 10 ? * SUN"
         timezone_id: America/New_York
         pause_status: PAUSED
       tasks:
-        - task_key: daily_refresh
+        - task_key: weekly_refresh
           notebook_task:
-            notebook_path: ../notebooks/07_daily_refresh.py
+            notebook_path: ../notebooks/07_weekly_refresh.py
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge

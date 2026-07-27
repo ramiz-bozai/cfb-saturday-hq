@@ -1,4 +1,4 @@
-"""CFBD REST client used for historical Volume downloads and daily API refresh."""
+"""CFBD REST client used for historical Volume downloads and the weekly API refresh."""
 
 from __future__ import annotations
 
