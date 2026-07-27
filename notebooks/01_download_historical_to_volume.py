@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
-REPO_PATH = ""
+REPO_PATH = "/Workspace/Users/ramiz.bozai@databricks.com/cfb-saturday-hq"
 HISTORY_START_YEAR = 2015
 CURRENT_SEASON = 2026
 END_YEAR = None  # None => CURRENT_SEASON
@@ -68,5 +68,6 @@ manifest = download_historical_to_volume(
 )
 manifest_df = spark.createDataFrame(manifest)
 display(manifest_df.orderBy("domain", "year"))
-print("errors:", manifest_df.filter("error is not null").count())
+if "error" in manifest_df.columns:
+    print("errors:", manifest_df.filter("error is not null").count())
 print("historical root:", config.historical_path)
