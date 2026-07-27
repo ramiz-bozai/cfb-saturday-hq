@@ -20,7 +20,9 @@ DISCLAIMER_CFP = (
     "Not an official College Football Playoff selection."
 )
 
-CATALOG = os.getenv("SATURDAY_HQ_CATALOG", "saturday_hq")
+CATALOG = os.getenv("SATURDAY_HQ_CATALOG", "cfb_saturday_hq")
+GOLD_SCHEMA = os.getenv("SATURDAY_HQ_GOLD_SCHEMA", "cfb_gold")
+APP_SCHEMA = os.getenv("SATURDAY_HQ_APP_SCHEMA", "cfb_app")
 
 
 def get_spark():
@@ -50,7 +52,7 @@ def main():
     season = st.sidebar.number_input("Season", min_value=2015, max_value=2030, value=2026)
     week = st.sidebar.number_input("Week", min_value=0, max_value=16, value=1)
 
-    profiles = load_table(f"SELECT * FROM {CATALOG}.app.demo_profiles ORDER BY display_name")
+    profiles = load_table(f"SELECT * FROM {CATALOG}.{APP_SCHEMA}.demo_profiles ORDER BY display_name")
     profile_name = st.sidebar.selectbox(
         "Demo profile",
         options=profiles["display_name"].tolist() if not profiles.empty else ["(none)"],
@@ -85,7 +87,7 @@ def main():
                    market_spread,
                    round(home_sp_overall, 1) AS home_sp,
                    round(away_sp_overall, 1) AS away_sp
-            FROM {CATALOG}.gold.matchup_card
+            FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
             WHERE season = {int(season)} AND week = {int(week)}
             ORDER BY abs(coalesce(model_minus_market_home, 0)) DESC
             """
@@ -102,7 +104,7 @@ def main():
         slate_all = load_table(
             f"""
             SELECT home_team, away_team
-            FROM {CATALOG}.gold.matchup_card
+            FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
             WHERE season = {int(season)} AND week = {int(week)}
             ORDER BY home_team
             """
@@ -117,7 +119,7 @@ def main():
             card = load_table(
                 f"""
                 SELECT *
-                FROM {CATALOG}.gold.matchup_card
+                FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
                 WHERE season = {int(season)} AND week = {int(week)}
                   AND home_team = '{home}' AND away_team = '{away}'
                 """
@@ -132,7 +134,7 @@ def main():
                    round(mean_wins, 2) AS mean_wins,
                    round(playoff_odds, 3) AS playoff_odds,
                    round(avg_seed_if_in, 2) AS avg_seed_if_in
-            FROM {CATALOG}.gold.playoff_projections
+            FROM {CATALOG}.{GOLD_SCHEMA}.playoff_projections
             WHERE season = {int(season)}
             ORDER BY playoff_odds DESC
             LIMIT 40
@@ -149,7 +151,7 @@ def main():
                    round(model_win_prob, 3) AS model_win_prob,
                    round(market_win_prob, 3) AS market_win_prob,
                    market_spread
-            FROM {CATALOG}.gold.weekly_brief
+            FROM {CATALOG}.{GOLD_SCHEMA}.weekly_brief
             WHERE season = {int(season)} AND week = {int(week)} AND team = '{team}'
             """
         )

@@ -9,3 +9,7 @@ dist/
 build/
 .env
 /docs/STEP_BY_STEP.md
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/profiles.yml

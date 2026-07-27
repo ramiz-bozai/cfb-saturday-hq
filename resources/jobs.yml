@@ -7,9 +7,11 @@ resources:
         timezone_id: America/New_York
         pause_status: PAUSED
       tasks:
+        # This notebook shells out to dbt itself (set RUN_DBT = False in the notebook if
+        # you would rather split the dbt steps into their own tasks).
         - task_key: daily_refresh
           notebook_task:
-            notebook_path: ../notebooks/07_daily_refresh.py
+            notebook_path: ../notebooks/04_daily_refresh.py
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
@@ -25,29 +27,43 @@ resources:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
-        - task_key: bronze
+
+        # bronze -> silver -> gold. The matchup card is excluded until predictions exist.
+        - task_key: dbt_transform
           depends_on:
             - task_key: download_historical
+          dbt_task:
+            project_directory: ../dbt
+            profiles_directory: ../dbt
+            warehouse_id: ${var.dbt_warehouse_id}
+            commands:
+              - dbt build --exclude gold_matchup_card
+
+        - task_key: train_and_score
+          depends_on:
+            - task_key: dbt_transform
           notebook_task:
-            notebook_path: ../notebooks/02_bronze_from_volume.py
+            notebook_path: ../notebooks/02_train_and_score.py
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
-        - task_key: silver
+
+        - task_key: dbt_matchup_card
           depends_on:
-            - task_key: bronze
-          notebook_task:
-            notebook_path: ../notebooks/03_silver.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
-        - task_key: gold
+            - task_key: train_and_score
+          dbt_task:
+            project_directory: ../dbt
+            profiles_directory: ../dbt
+            warehouse_id: ${var.dbt_warehouse_id}
+            commands:
+              - dbt build --select gold_matchup_card
+
+        - task_key: projections_and_briefs
           depends_on:
-            - task_key: silver
+            - task_key: dbt_matchup_card
           notebook_task:
-            notebook_path: ../notebooks/04_gold.py
+            notebook_path: ../notebooks/03_projections_and_briefs.py
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge

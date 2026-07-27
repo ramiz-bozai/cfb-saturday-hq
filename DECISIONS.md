@@ -10,6 +10,8 @@
 | Play-by-play | Out of scope for v1 |
 | Audience | Demo-able / clean |
 | Historical load | Download files into a Unity Catalog **Volume**, then load bronze from Volume |
+| Transformation layer | **dbt** for bronze → silver → gold; Python only for ingest, ML, projections, briefs |
+| Bronze ingestion | dbt models over `read_files()` on the Volume (no Python bronze loader) |
 | Ongoing refresh | CFBD **API** daily |
 | Refresh SLA | Daily |
 | CFP logic | Published 2026 12-team rules; model ranking is a stand-in for committee rank |

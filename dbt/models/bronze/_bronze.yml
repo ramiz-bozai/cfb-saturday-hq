@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: bronze_games
+    description: CFBD /games, one row per game per landing file.
+    columns:
+      - name: game_id
+        tests: [not_null]
+      - name: season
+        tests: [not_null]
+
+  - name: bronze_teams_fbs
+    description: CFBD /teams/fbs. `school` is landed as `team`.
+    columns:
+      - name: team
+        tests: [not_null]
+
+  - name: bronze_conferences
+    description: CFBD /conferences, landed once under year=0.
+
+  - name: bronze_sp_plus
+    description: CFBD /ratings/sp with the offense/defense/specialTeams structs flattened.
+    columns:
+      - name: season
+        tests: [not_null]
+
+  - name: bronze_ppa_teams
+    description: CFBD /ppa/teams (garbage time excluded), offense/defense structs flattened.
+    columns:
+      - name: season
+        tests: [not_null]
+
+  - name: bronze_ppa_games
+    description: CFBD /ppa/games, one row per team per game.
+
+  - name: bronze_talent
+    description: CFBD /talent composite talent score per team-season.
+
+  - name: bronze_recruiting_teams
+    description: CFBD /recruiting/teams class rank and points.
+
+  - name: bronze_rankings
+    description: CFBD /rankings. `polls` stays nested; silver_rankings explodes it.
+
+  - name: bronze_lines
+    description: CFBD /lines. `lines` stays nested; silver_lines_all explodes it.
+
+  - name: bronze_team_season_stats
+    description: CFBD /stats/season, long format. Landed for ad-hoc use only.

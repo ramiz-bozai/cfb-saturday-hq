@@ -1,7 +1,11 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 05 — Train matchup model, score slate, build matchup cards
+# MAGIC # 02 — Train matchup model and score games
+# MAGIC Reads `cfb_gold.game_features` (built by dbt) and writes `cfb_gold.game_predictions`.
 # MAGIC Lines are shown for model-vs-market comparison and are **not** training features.
+# MAGIC
+# MAGIC Run `dbt build` before this notebook. Afterwards run
+# MAGIC `dbt build --select gold_matchup_card` to fold these predictions into the card.
 
 # COMMAND ----------
 
@@ -21,7 +25,6 @@ else:
 
 from saturday_hq.config import SaturdayHQConfig
 from saturday_hq.ml.train import train_and_register, score_games
-from saturday_hq.transform.gold import build_gold_matchup_card
 
 config = SaturdayHQConfig(current_season=CURRENT_SEASON)
 
@@ -39,25 +42,13 @@ pred_table = score_games(
     seasons=list(range(config.history_start_year, config.current_season + 1)),
 )
 print("wrote", pred_table)
+display(spark.table(pred_table).orderBy("season", "week").limit(50))
 
 # COMMAND ----------
 
-card_table = build_gold_matchup_card(config)
-print("wrote", card_table)
-display(
-    spark.table(card_table)
-    .filter(f"season = {config.current_season}")
-    .select(
-        "week",
-        "home_team",
-        "away_team",
-        "model_home_win_prob",
-        "market_home_win_prob_implied",
-        "model_minus_market_home",
-        "market_spread",
-        "home_sp_overall",
-        "away_sp_overall",
-    )
-    .orderBy("week")
-    .limit(100)
-)
+# MAGIC %md
+# MAGIC ## Next step
+# MAGIC `cfb_gold.matchup_card` is a dbt model over these predictions:
+# MAGIC ```bash
+# MAGIC dbt build --select gold_matchup_card
+# MAGIC ```

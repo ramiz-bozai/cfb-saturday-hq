@@ -11,4 +11,8 @@ command: [
 
 env:
   - name: SATURDAY_HQ_CATALOG
-    value: saturday_hq
+    value: cfb_saturday_hq
+  - name: SATURDAY_HQ_GOLD_SCHEMA
+    value: cfb_gold
+  - name: SATURDAY_HQ_APP_SCHEMA
+    value: cfb_app

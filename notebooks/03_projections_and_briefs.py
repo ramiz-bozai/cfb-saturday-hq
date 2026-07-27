@@ -1,6 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 06 — Preseason ratings, CFP projections, weekly briefs
+# MAGIC # 03 — Preseason ratings, CFP projections, weekly briefs
+# MAGIC Reads dbt-built silver/gold tables; briefs need `cfb_gold.matchup_card`, so run
+# MAGIC `dbt build --select gold_matchup_card` after scoring and before this notebook.
 
 # COMMAND ----------
 

@@ -1,0 +1,35 @@
+version: 2
+
+models:
+  - name: gold_team_week
+    description: >
+      Team-season-week form (record, point differential, last-3 margin) joined to season
+      SP+/PPA/talent/recruiting. This is the as-of feature source for game_features.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: team
+        tests: [not_null]
+      - name: conference_group
+        description: Power4 / G6 / Independent / Other.
+
+  - name: gold_game_features
+    description: >
+      One row per FBS-vs-FBS game with both sides' as-of features, market line fields,
+      and labels. Market columns are for display only and are excluded from FEATURE_COLS.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: market_home_win_prob_implied
+        description: Implied from the American home moneyline, no vig removal. Market context, not a recommendation.
+
+  - name: gold_matchup_card
+    description: >
+      Serving table for the App and briefs: game features plus model probability and the
+      model-minus-market delta. Requires cfb_gold.game_predictions, so it is built in a
+      second dbt pass after scoring.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: model_home_win_prob
+        description: Null until the scoring notebook has run for that game's season.

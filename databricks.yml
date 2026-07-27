@@ -35,3 +35,6 @@ variables:
   secret_key:
     description: Secret key name for CFBD API key
     default: cfbd_api_key
+  dbt_warehouse_id:
+    description: SQL warehouse ID the dbt job tasks run against
+    default: ""

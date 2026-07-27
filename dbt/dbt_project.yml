@@ -1,0 +1,32 @@
+name: cfb_saturday_hq
+version: "1.0.0"
+config-version: 2
+
+profile: cfb_saturday_hq
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Root of the Unity Catalog Volume that notebook 01 writes CFBD JSONL into.
+  landing_root: /Volumes/cfb_saturday_hq/cfb_bronze/cfbd_landing
+  # Flip to true once the weekly refresh has written at least one incremental/dt=.../ drop.
+  # Bronze models read only historical/ while this is false, because read_files fails
+  # on a path that matches no files.
+  include_incremental: false
+
+models:
+  cfb_saturday_hq:
+    +materialized: table
+    +file_format: delta
+    bronze:
+      +schema: cfb_bronze
+      +tags: ["bronze"]
+    silver:
+      +schema: cfb_silver
+      +tags: ["silver"]
+    gold:
+      +schema: cfb_gold
+      +tags: ["gold"]
