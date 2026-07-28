@@ -16,7 +16,7 @@ from pathlib import Path
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""  # e.g. "/Workspace/Users/you@company.com/saturday-hq"; blank => auto-detect
 HISTORY_START_YEAR = 2015
-CURRENT_SEASON = 2026
+CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 SECRET_SCOPE = "cfb_saturday_hq"
 SECRET_KEY = "cfbd_api_key"
 
@@ -26,11 +26,11 @@ else:
     sys.path.insert(0, str(Path.cwd().parent / "src"))
     sys.path.insert(0, str(Path.cwd() / "src"))
 
-from saturday_hq.config import SaturdayHQConfig
+from saturday_hq.config import SaturdayHQConfig, current_cfb_season
 
 config = SaturdayHQConfig(
     history_start_year=HISTORY_START_YEAR,
-    current_season=CURRENT_SEASON,
+    current_season=CURRENT_SEASON or current_cfb_season(),
     secret_scope=SECRET_SCOPE,
     secret_key=SECRET_KEY,
 )
@@ -75,6 +75,24 @@ print("CFBD secret found (value not printed).")
 for sub in [config.historical_path, config.incremental_path, config.manual_path]:
     Path(sub).mkdir(parents=True, exist_ok=True)
     print("ready:", sub)
+
+# COMMAND ----------
+
+# cfb_gold.matchup_card is a dbt view over this table, and Python fills it during scoring.
+# Creating it empty here means the first `dbt build` can create the view before any model
+# has been trained.
+spark.sql(
+    f"""
+CREATE TABLE IF NOT EXISTS {config.gold('game_predictions')} (
+  game_id BIGINT,
+  season INT,
+  week INT,
+  model_home_win_prob DOUBLE,
+  model_version STRING,
+  scored_at STRING
+) USING DELTA
+"""
+)
 
 # COMMAND ----------
 

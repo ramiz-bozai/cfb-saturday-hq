@@ -5,7 +5,9 @@ with typed as (
     select
         season,
         team,
-        talent
+        talent,
+        _source_path,
+        _ingest_mode
     from {{ ref('bronze_talent') }}
     where team is not null
       and season is not null
@@ -14,4 +16,7 @@ with typed as (
 
 select *
 from typed
-qualify row_number() over (partition by season, team order by talent desc nulls last) = 1
+qualify row_number() over (
+    partition by season, team
+    order by {{ latest_ingest_first() }}
+) = 1

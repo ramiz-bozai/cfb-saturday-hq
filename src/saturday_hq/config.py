@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Optional
+
+# CFBD labels a season by its starting year, so the rollover happens in August:
+# runs before August target the last completed season, runs from August on target the new one.
+SEASON_START_MONTH = 8
+
+
+def current_cfb_season(today: Optional[date] = None) -> int:
+    """Season CFBD is currently publishing: the in-progress one, else the last completed one."""
+    today = today or date.today()
+    return today.year if today.month >= SEASON_START_MONTH else today.year - 1
 
 
 POWER4_CANONICAL = {"ACC", "Big Ten", "Big 12", "SEC"}
@@ -67,7 +79,7 @@ class SaturdayHQConfig:
     secret_scope: str = "cfb_saturday_hq"
     secret_key: str = "cfbd_api_key"
     history_start_year: int = 2015
-    current_season: int = 2026
+    current_season: int = field(default_factory=current_cfb_season)
     classification: str = "fbs"
     cfbd_base_url: str = "https://api.collegefootballdata.com"
     request_pause_seconds: float = 0.25

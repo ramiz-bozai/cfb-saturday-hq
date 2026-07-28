@@ -32,7 +32,9 @@ with typed as (
                 then home_points > away_points
         end as home_won,
         case when completed then home_points - away_points end as margin_home,
-        case when completed then home_points + away_points end as total_points
+        case when completed then home_points + away_points end as total_points,
+        _source_path,
+        _ingest_mode
     from {{ ref('bronze_games') }}
 
 ),
@@ -41,7 +43,10 @@ deduped as (
 
     select *
     from typed
-    qualify row_number() over (partition by game_id order by season, week) = 1
+    qualify row_number() over (
+        partition by game_id
+        order by {{ latest_ingest_first() }}
+    ) = 1
 
 )
 

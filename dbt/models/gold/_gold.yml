@@ -25,9 +25,9 @@ models:
 
   - name: gold_matchup_card
     description: >
-      Serving table for the App and briefs: game features plus model probability and the
-      model-minus-market delta. Requires cfb_gold.game_predictions, so it is built in a
-      second dbt pass after scoring.
+      Serving view for the App and briefs: game features plus model probability and the
+      model-minus-market delta. A view so that new scoring runs show up without another
+      dbt run.
     columns:
       - name: game_id
         tests: [unique, not_null]

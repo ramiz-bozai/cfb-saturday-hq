@@ -11,7 +11,9 @@ with typed as (
         {{ normalize_conference('conference') }} as conference,
         opponent,
         ppa_offense,
-        ppa_defense
+        ppa_defense,
+        _source_path,
+        _ingest_mode
     from {{ ref('bronze_ppa_games') }}
     where game_id is not null
       and team is not null
@@ -20,4 +22,7 @@ with typed as (
 
 select *
 from typed
-qualify row_number() over (partition by game_id, team order by week) = 1
+qualify row_number() over (
+    partition by game_id, team
+    order by {{ latest_ingest_first() }}
+) = 1

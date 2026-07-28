@@ -13,6 +13,17 @@ CREATE SCHEMA IF NOT EXISTS cfb_saturday_hq.cfb_app;
 -- Landing volume for historical JSONL downloads and daily incremental drops
 CREATE VOLUME IF NOT EXISTS cfb_bronze.cfbd_landing;
 
+-- Model scores. Python fills this during scoring; cfb_gold.matchup_card is a dbt view over
+-- it, so it must exist (even empty) before the first dbt run.
+CREATE TABLE IF NOT EXISTS cfb_gold.game_predictions (
+  game_id BIGINT,
+  season INT,
+  week INT,
+  model_home_win_prob DOUBLE,
+  model_version STRING,
+  scored_at STRING
+) USING DELTA;
+
 -- Demo profiles for the App (My Teams)
 CREATE TABLE IF NOT EXISTS cfb_app.demo_profiles (
   profile_id STRING,

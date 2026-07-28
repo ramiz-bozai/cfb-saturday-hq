@@ -9,8 +9,8 @@ sources:
     tables:
       - name: game_predictions
         description: >
-          Model scores written by src/saturday_hq/ml/train.py score_games(). Only exists
-          after the training/scoring notebook has run at least once.
+          Model scores written by src/saturday_hq/ml/train.py score_games(). Notebook 00
+          creates it empty so gold_matchup_card can be created before the first training run.
         columns:
           - name: game_id
             tests:

@@ -6,10 +6,19 @@ Deploy as a Databricks App with a SQL warehouse / UC access to gold + app schema
 from __future__ import annotations
 
 import os
+from datetime import date
 from typing import List
 
 import pandas as pd
 import streamlit as st
+
+# Mirrors current_cfb_season() in src/saturday_hq/config.py; the app ships without the package.
+SEASON_START_MONTH = 8
+
+
+def default_season(today: date | None = None) -> int:
+    today = today or date.today()
+    return today.year if today.month >= SEASON_START_MONTH else today.year - 1
 
 DISCLAIMER_MARKET = (
     "For analysis and entertainment only. Not gambling advice. "
@@ -49,7 +58,9 @@ def main():
     st.info(DISCLAIMER_MARKET)
     st.warning(DISCLAIMER_CFP)
 
-    season = st.sidebar.number_input("Season", min_value=2015, max_value=2030, value=2026)
+    season = st.sidebar.number_input(
+        "Season", min_value=2015, max_value=2030, value=default_season()
+    )
     week = st.sidebar.number_input("Week", min_value=0, max_value=16, value=1)
 
     profiles = load_table(f"SELECT * FROM {CATALOG}.{APP_SCHEMA}.demo_profiles ORDER BY display_name")

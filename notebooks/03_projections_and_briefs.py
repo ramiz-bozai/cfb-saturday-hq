@@ -1,8 +1,8 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # 03 — Preseason ratings, CFP projections, weekly briefs
-# MAGIC Reads dbt-built silver/gold tables; briefs need `cfb_gold.matchup_card`, so run
-# MAGIC `dbt build --select gold_matchup_card` after scoring and before this notebook.
+# MAGIC Reads dbt-built silver/gold relations. Briefs read the `cfb_gold.matchup_card` view,
+# MAGIC so run the scoring notebook first; no dbt run is needed in between.
 
 # COMMAND ----------
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""
-CURRENT_SEASON = 2026
+CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 N_SIMS = 2000
 WEEK = None  # None => latest available week in data
 
@@ -23,12 +23,13 @@ else:
 
 from pyspark.sql import functions as F
 
-from saturday_hq.config import SaturdayHQConfig
+from saturday_hq.config import SaturdayHQConfig, current_cfb_season
 from saturday_hq.projections.simulator import build_preseason_ratings, simulate_season
 from saturday_hq.briefs.generate import generate_weekly_briefs
 from saturday_hq.cfp_rules import CFP_RULES_TEXT
 
-config = SaturdayHQConfig(current_season=CURRENT_SEASON)
+config = SaturdayHQConfig(current_season=CURRENT_SEASON or current_cfb_season())
+print("season:", config.current_season)
 print(CFP_RULES_TEXT[:500], "...")
 
 # COMMAND ----------

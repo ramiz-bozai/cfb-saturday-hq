@@ -12,4 +12,5 @@ build/
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
-dbt/profiles.yml
+# dbt/profiles.yml is committed on purpose: it holds no secrets, only a
+# DBT_ACCESS_TOKEN env_var reference. See README, "How dbt works here".

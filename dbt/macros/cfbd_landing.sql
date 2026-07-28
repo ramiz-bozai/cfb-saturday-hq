@@ -6,6 +6,18 @@
       incremental/dt=YYYY-MM-DD/<domain>/<domain>.jsonl
 #}
 
+{#
+    Ordering for the silver dedupes: when the same natural key lands more than once, keep
+    the newest copy. Incremental drops beat the historical backfill, and a later
+    dt=YYYY-MM-DD beats an earlier one because the path sorts lexicographically. This is
+    what makes re-running the daily refresh safe — a game that was scheduled yesterday and
+    final today resolves to today's row.
+#}
+{% macro latest_ingest_first() -%}
+    case when _ingest_mode = 'incremental' then 1 else 0 end desc, _source_path desc
+{%- endmacro %}
+
+
 {% macro cfbd_read(domain, mode) -%}
     {%- set root = var('landing_root') -%}
     {%- if mode == 'historical' -%}

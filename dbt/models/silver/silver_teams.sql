@@ -13,7 +13,9 @@ with typed as (
         alternate_color,
         logos,
         true as is_fbs,
-        lower(team) = 'notre dame' as is_notre_dame
+        lower(team) = 'notre dame' as is_notre_dame,
+        _source_path,
+        _ingest_mode
     from {{ ref('bronze_teams_fbs') }}
     where team is not null
 
@@ -21,4 +23,7 @@ with typed as (
 
 select *
 from typed
-qualify row_number() over (partition by team order by team_id) = 1
+qualify row_number() over (
+    partition by team
+    order by {{ latest_ingest_first() }}
+) = 1

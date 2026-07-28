@@ -12,7 +12,9 @@ with typed as (
         ppa_offense_rushing,
         ppa_defense,
         ppa_defense_passing,
-        ppa_defense_rushing
+        ppa_defense_rushing,
+        _source_path,
+        _ingest_mode
     from {{ ref('bronze_ppa_teams') }}
     where team is not null
       and season is not null
@@ -21,4 +23,7 @@ with typed as (
 
 select *
 from typed
-qualify row_number() over (partition by season, team order by ppa_offense desc nulls last) = 1
+qualify row_number() over (
+    partition by season, team
+    order by {{ latest_ingest_first() }}
+) = 1

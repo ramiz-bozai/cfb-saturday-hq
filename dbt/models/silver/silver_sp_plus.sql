@@ -12,7 +12,9 @@ with typed as (
         sp_sos,
         sp_offense,
         sp_defense,
-        sp_special_teams
+        sp_special_teams,
+        _source_path,
+        _ingest_mode
     from {{ ref('bronze_sp_plus') }}
     where team is not null
       and season is not null
@@ -21,4 +23,7 @@ with typed as (
 
 select *
 from typed
-qualify row_number() over (partition by season, team order by sp_overall desc nulls last) = 1
+qualify row_number() over (
+    partition by season, team
+    order by {{ latest_ingest_first() }}
+) = 1

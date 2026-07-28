@@ -1,70 +1,86 @@
 resources:
   jobs:
+    # Both jobs are the same shape: Python ingest -> dbt task -> Python score/serve.
+    # The dbt tasks carry no warehouse_id on purpose, which is what lets them use the
+    # committed dbt/profiles.yml. profiles_directory is left unset because it defaults to
+    # the dbt project root, and that is where profiles.yml lives. Databricks injects
+    # DBT_ACCESS_TOKEN for the Run As principal at run time.
     saturday_hq_daily:
       name: saturday-hq-daily-refresh
       schedule:
         quartz_cron_expression: "0 0 10 * * ?"
         timezone_id: America/New_York
         pause_status: PAUSED
-      tasks:
-        # This notebook shells out to dbt itself (set RUN_DBT = False in the notebook if
-        # you would rather split the dbt steps into their own tasks).
-        - task_key: daily_refresh
-          notebook_task:
-            notebook_path: ../notebooks/04_daily_refresh.py
+      job_clusters:
+        - job_cluster_key: main
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
+      tasks:
+        - task_key: ingest
+          job_cluster_key: main
+          notebook_task:
+            notebook_path: ../notebooks/04_daily_ingest.py
+
+        - task_key: dbt_transform
+          depends_on:
+            - task_key: ingest
+          job_cluster_key: main
+          dbt_task:
+            project_directory: ../dbt
+            commands:
+              - dbt build
+          libraries:
+            - pypi:
+                package: dbt-databricks>=1.8.0,<2.0.0
+
+        - task_key: score_and_serve
+          depends_on:
+            - task_key: dbt_transform
+          job_cluster_key: main
+          notebook_task:
+            notebook_path: ../notebooks/05_daily_score_and_serve.py
 
     saturday_hq_backfill:
       name: saturday-hq-historical-backfill
-      tasks:
-        - task_key: download_historical
-          notebook_task:
-            notebook_path: ../notebooks/01_download_historical_to_volume.py
+      job_clusters:
+        - job_cluster_key: main
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
+      tasks:
+        - task_key: download_historical
+          job_cluster_key: main
+          notebook_task:
+            notebook_path: ../notebooks/01_download_historical_to_volume.py
 
-        # bronze -> silver -> gold. The matchup card is excluded until predictions exist.
+        # First build only reads historical/, since no incremental drop exists yet.
         - task_key: dbt_transform
           depends_on:
             - task_key: download_historical
+          job_cluster_key: main
           dbt_task:
             project_directory: ../dbt
-            profiles_directory: ../dbt
-            warehouse_id: ${var.dbt_warehouse_id}
             commands:
-              - dbt build --exclude gold_matchup_card
+              # Quoted: the ": " inside --vars would otherwise parse as a YAML mapping.
+              - "dbt build --vars '{include_incremental: false}'"
+          libraries:
+            - pypi:
+                package: dbt-databricks>=1.8.0,<2.0.0
 
         - task_key: train_and_score
           depends_on:
             - task_key: dbt_transform
+          job_cluster_key: main
           notebook_task:
             notebook_path: ../notebooks/02_train_and_score.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
 
-        - task_key: dbt_matchup_card
-          depends_on:
-            - task_key: train_and_score
-          dbt_task:
-            project_directory: ../dbt
-            profiles_directory: ../dbt
-            warehouse_id: ${var.dbt_warehouse_id}
-            commands:
-              - dbt build --select gold_matchup_card
-
+        # No dbt task here: matchup_card is a view, so it already reflects the new scores.
         - task_key: projections_and_briefs
           depends_on:
-            - task_key: dbt_matchup_card
+            - task_key: train_and_score
+          job_cluster_key: main
           notebook_task:
             notebook_path: ../notebooks/03_projections_and_briefs.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2

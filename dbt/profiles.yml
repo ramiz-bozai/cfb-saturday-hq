@@ -1,0 +1,18 @@
+# Committed on purpose — nothing here is a secret. Host, http_path, catalog, and schema are
+# plain connection details; the only credential is a runtime env_var lookup:
+#   local laptop -> you export DBT_ACCESS_TOKEN (see .env.template at the repo root)
+#   Databricks   -> the job's dbt task injects it for the Run As principal
+cfb_saturday_hq:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: e2-demo-field-eng.cloud.databricks.com
+      # SQL Warehouses -> your warehouse -> Connection details -> HTTP path
+      http_path: /sql/1.0/warehouses/YOUR_WAREHOUSE_ID
+      token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
+      catalog: cfb_saturday_hq
+      # Per-folder schemas (cfb_bronze/cfb_silver/cfb_gold) override this; it is only the
+      # fallback for models without a schema config.
+      schema: cfb_silver
+      threads: 4

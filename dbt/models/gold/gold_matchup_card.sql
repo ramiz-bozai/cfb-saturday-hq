@@ -1,15 +1,13 @@
-{{ config(alias='matchup_card') }}
+{{ config(alias='matchup_card', materialized='view') }}
 
 /*
-    Serving table for the App, dashboards, and briefs: game features beside the model
+    Serving relation for the App, dashboards, and briefs: game features beside the model
     probability and the market's implied probability.
 
-    game_predictions is written by src/saturday_hq/ml/train.py, so this model runs in a
-    second dbt pass after scoring:
-
-        dbt build --exclude gold_matchup_card   # before scoring
-        <run the training/scoring notebook>
-        dbt build --select gold_matchup_card    # after scoring
+    A view on purpose. game_predictions is written by Python (ml/train.py score_games), and
+    a view means dbt does not have to run again after scoring — the card reflects the newest
+    predictions the moment they land. Keeps the pipeline to one handoff each way:
+    Python ingest -> dbt -> Python scoring/serving.
 */
 
 select
