@@ -10,12 +10,12 @@
 
 -- Example certified queries
 -- SELECT season, team, sp_overall, ppa_offense, ppa_defense
--- FROM cfb_saturday_hq.cfb_gold.team_week
+-- FROM cfb_saturday_hq_prod.cfb_gold.team_week
 -- WHERE season = 2025 AND week = 10
 -- ORDER BY sp_overall DESC;
 
 -- SELECT season, week, home_team, away_team, model_home_win_prob,
 --        market_home_win_prob_implied, model_minus_market_home, market_spread
--- FROM cfb_saturday_hq.cfb_gold.matchup_card
--- WHERE season = 2025 AND week = 1
+-- FROM cfb_saturday_hq_prod.cfb_gold.matchup_card
+-- WHERE season = 2026 AND week = 1
 -- ORDER BY abs(model_minus_market_home) DESC NULLS LAST;

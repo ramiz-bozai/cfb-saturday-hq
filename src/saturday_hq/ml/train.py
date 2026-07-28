@@ -12,6 +12,7 @@ import mlflow
 import mlflow.sklearn
 import numpy as np
 import pandas as pd
+from mlflow.tracking import MlflowClient
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from sklearn.compose import ColumnTransformer
@@ -22,6 +23,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from saturday_hq.config import SaturdayHQConfig
+
+# Alias to score with, when one has been assigned in the UC model UI. Scoring falls back to
+# the newest version, so a fresh environment works before anyone promotes anything.
+MODEL_ALIAS = "production"
 
 FEATURE_COLS = [
     "sp_overall_diff",
@@ -112,12 +117,15 @@ def _metrics(y_true, y_prob) -> dict:
 
 def train_and_register(
     config: SaturdayHQConfig,
-    experiment_name: str = "/Shared/saturday_hq_matchup",
-    model_name: str = "saturday_hq_matchup",
+    experiment_name: Optional[str] = None,
+    model_name: Optional[str] = None,
     train_end_season: int = 2023,
     valid_season: int = 2024,
     test_season: int = 2025,
 ) -> dict:
+    model_name = model_name or config.model_name
+    experiment_name = experiment_name or f"/Shared/saturday_hq_{config.env}_matchup"
+    mlflow.set_registry_uri("databricks-uc")
     pdf = load_training_frame(config)
     train, valid, test = time_split(pdf, train_end_season, valid_season, test_season)
     if train.empty:
@@ -166,20 +174,32 @@ def train_and_register(
     return summary
 
 
+def _newest_version_uri(model_name: str) -> str:
+    """Unity Catalog has no `latest` pseudo-version, so resolve the highest version number."""
+    versions = MlflowClient().search_model_versions(f"name='{model_name}'")
+    if not versions:
+        raise RuntimeError(f"No versions registered for {model_name}")
+    newest = max(versions, key=lambda v: int(v.version))
+    return f"models:/{model_name}/{newest.version}"
+
+
 def score_games(
     config: SaturdayHQConfig,
     model_uri: Optional[str] = None,
-    model_name: str = "saturday_hq_matchup",
+    model_name: Optional[str] = None,
     seasons: Optional[List[int]] = None,
 ) -> str:
+    # UC registered models are referenced by alias, not by the old workspace stages.
+    mlflow.set_registry_uri("databricks-uc")
+    model_name = model_name or config.model_name
     spark = _spark()
-    uri = model_uri or f"models:/{model_name}/Production"
+    uri = model_uri or f"models:/{model_name}@{MODEL_ALIAS}"
     try:
         model = mlflow.sklearn.load_model(uri)
         version_label = uri
     except Exception:
-        # Fall back to latest version if Production alias is not set
-        uri = f"models:/{model_name}/latest"
+        # No @production alias assigned yet; fall back to the newest version.
+        uri = _newest_version_uri(model_name)
         model = mlflow.sklearn.load_model(uri)
         version_label = uri
 

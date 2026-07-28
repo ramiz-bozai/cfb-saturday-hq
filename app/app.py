@@ -12,6 +12,14 @@ from typing import List
 import pandas as pd
 import streamlit as st
 
+# Mirrors current_cfb_season() in src/saturday_hq/config.py; the app ships without the package.
+SEASON_START_MONTH = 8
+
+
+def default_season(today: date | None = None) -> int:
+    today = today or date.today()
+    return today.year if today.month >= SEASON_START_MONTH else today.year - 1
+
 DISCLAIMER_MARKET = (
     "For analysis and entertainment only. Not gambling advice. "
     "Lines are public market context shown next to the model."
@@ -21,15 +29,10 @@ DISCLAIMER_CFP = (
     "Not an official College Football Playoff selection."
 )
 
-CATALOG = os.getenv("SATURDAY_HQ_CATALOG", "cfb_saturday_hq")
-GOLD_SCHEMA = "cfb_gold"
-APP_SCHEMA = "cfb_app"
-
-
-def default_season() -> int:
-    """CFBD labels a season by its starting year; it rolls over in August."""
-    today = date.today()
-    return today.year if today.month >= 8 else today.year - 1
+# The App serves prod. Point SATURDAY_HQ_CATALOG at cfb_saturday_hq_dev to preview dev data.
+CATALOG = os.getenv("SATURDAY_HQ_CATALOG", "cfb_saturday_hq_prod")
+GOLD_SCHEMA = os.getenv("SATURDAY_HQ_GOLD_SCHEMA", "cfb_gold")
+APP_SCHEMA = os.getenv("SATURDAY_HQ_APP_SCHEMA", "cfb_app")
 
 
 def get_spark():
@@ -61,9 +64,7 @@ def main():
     )
     week = st.sidebar.number_input("Week", min_value=0, max_value=16, value=1)
 
-    profiles = load_table(
-        f"SELECT * FROM {CATALOG}.{APP_SCHEMA}.demo_profiles ORDER BY display_name"
-    )
+    profiles = load_table(f"SELECT * FROM {CATALOG}.{APP_SCHEMA}.demo_profiles ORDER BY display_name")
     profile_name = st.sidebar.selectbox(
         "Demo profile",
         options=profiles["display_name"].tolist() if not profiles.empty else ["(none)"],

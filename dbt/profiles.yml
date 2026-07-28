@@ -1,0 +1,30 @@
+# Committed on purpose — nothing here is a secret. Host, http_path, catalog, and schema are
+# plain connection details; the only credential is a runtime env_var lookup:
+#   local laptop -> you export DBT_ACCESS_TOKEN (see .env.template at the repo root)
+#   Databricks   -> the job's dbt task injects it for the Run As principal
+#
+# The two targets differ only by catalog. Bronze/silver/gold are built per environment; the
+# raw CFBD files they read are shared (var landing_root in dbt_project.yml), so dev and prod
+# never re-ingest and always see identical inputs.
+#   dbt build                  -> dev  (the default; use this locally)
+#   dbt build --target prod    -> prod (what the jobs run)
+cfb_saturday_hq:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: "8259558835430576.6.gcp.databricks.com/"
+      http_path: "/sql/1.0/warehouses/a6130b119b718dc3"
+      catalog: "cfb_saturday_hq_dev"
+      schema: "dbt_rbozai"
+      token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
+      threads: 16
+
+    prod:
+      type: databricks
+      host: "8259558835430576.6.gcp.databricks.com/"
+      http_path: "/sql/1.0/warehouses/a6130b119b718dc3"
+      catalog: "cfb_saturday_hq_prod"
+      schema: "default"
+      token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
+      threads: 16

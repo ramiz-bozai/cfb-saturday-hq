@@ -1,55 +1,97 @@
 resources:
   jobs:
-    saturday_hq_weekly:
-      name: saturday-hq-weekly-refresh
+    # Both jobs are the same shape: Python ingest -> dbt task -> Python score/serve.
+    #
+    # The environment comes from the bundle target in two matching places: SATURDAY_HQ_ENV on
+    # the cluster (read by src/saturday_hq/config.py) and --target on the dbt tasks. Deploy
+    # with -t dev or -t prod and both sides move together.
+    #
+    # The dbt tasks carry no warehouse_id on purpose, which is what lets them use the
+    # committed dbt/profiles.yml. profiles_directory is left unset because it defaults to
+    # the dbt project root, and that is where profiles.yml lives. Databricks injects
+    # DBT_ACCESS_TOKEN for the Run As principal at run time.
+    saturday_hq_daily:
+      name: saturday-hq-daily-refresh-${var.env}
       schedule:
-        # Sundays 10:00 ET, after the Saturday slate is final
-        quartz_cron_expression: "0 0 10 ? * SUN"
+        quartz_cron_expression: "0 0 10 * * ?"
         timezone_id: America/New_York
         pause_status: PAUSED
-      tasks:
-        - task_key: weekly_refresh
-          notebook_task:
-            notebook_path: ../notebooks/07_weekly_refresh.py
+      job_clusters:
+        - job_cluster_key: main
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
+            spark_env_vars:
+              SATURDAY_HQ_ENV: ${var.env}
+      tasks:
+        - task_key: ingest
+          job_cluster_key: main
+          notebook_task:
+            notebook_path: ../notebooks/04_daily_ingest.py
+
+        - task_key: dbt_transform
+          depends_on:
+            - task_key: ingest
+          job_cluster_key: main
+          dbt_task:
+            project_directory: ../dbt
+            commands:
+              - dbt build --target ${var.env}
+          libraries:
+            - pypi:
+                package: dbt-databricks>=1.8.0,<2.0.0
+
+        - task_key: score_and_serve
+          depends_on:
+            - task_key: dbt_transform
+          job_cluster_key: main
+          notebook_task:
+            notebook_path: ../notebooks/05_daily_score_and_serve.py
 
     saturday_hq_backfill:
-      name: saturday-hq-historical-backfill
+      name: saturday-hq-historical-backfill-${var.env}
+      job_clusters:
+        - job_cluster_key: main
+          new_cluster:
+            spark_version: 15.4.x-scala2.12
+            node_type_id: i3.xlarge
+            num_workers: 2
+            spark_env_vars:
+              SATURDAY_HQ_ENV: ${var.env}
       tasks:
+        # Writes to the shared raw volume, so this only ever needs to run once, from either
+        # environment. Re-running it from the other one would just re-download the same files.
         - task_key: download_historical
+          job_cluster_key: main
           notebook_task:
             notebook_path: ../notebooks/01_download_historical_to_volume.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
-        - task_key: bronze
+
+        # First build only reads historical/, since no incremental drop exists yet.
+        - task_key: dbt_transform
           depends_on:
             - task_key: download_historical
-          notebook_task:
-            notebook_path: ../notebooks/02_bronze_from_volume.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
-        - task_key: silver
+          job_cluster_key: main
+          dbt_task:
+            project_directory: ../dbt
+            commands:
+              # Quoted: the ": " inside --vars would otherwise parse as a YAML mapping.
+              - "dbt build --target ${var.env} --vars '{include_incremental: false}'"
+          libraries:
+            - pypi:
+                package: dbt-databricks>=1.8.0,<2.0.0
+
+        - task_key: train_and_score
           depends_on:
-            - task_key: bronze
+            - task_key: dbt_transform
+          job_cluster_key: main
           notebook_task:
-            notebook_path: ../notebooks/03_silver.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
-        - task_key: gold
+            notebook_path: ../notebooks/02_train_and_score.py
+
+        # No dbt task here: matchup_card is a view, so it already reflects the new scores.
+        - task_key: projections_and_briefs
           depends_on:
-            - task_key: silver
+            - task_key: train_and_score
+          job_cluster_key: main
           notebook_task:
-            notebook_path: ../notebooks/04_gold.py
-          new_cluster:
-            spark_version: 15.4.x-scala2.12
-            node_type_id: i3.xlarge
-            num_workers: 2
+            notebook_path: ../notebooks/03_projections_and_briefs.py

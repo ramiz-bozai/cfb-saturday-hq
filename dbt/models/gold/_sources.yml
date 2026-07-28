@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: cfb_gold
+    description: >
+      Gold tables produced by Python rather than dbt. The catalog defaults to the one in
+      the active dbt target.
+    schema: cfb_gold
+    tables:
+      - name: game_predictions
+        description: >
+          Model scores written by src/saturday_hq/ml/train.py score_games(). Notebook 00
+          creates it empty so gold_matchup_card can be created before the first training run.
+        columns:
+          - name: game_id
+            tests:
+              - unique
+              - not_null
+          - name: model_home_win_prob
+            description: Probability the home team wins. Never trained on betting lines.

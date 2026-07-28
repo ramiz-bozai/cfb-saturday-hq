@@ -1,0 +1,65 @@
+version: 2
+
+models:
+  - name: silver_games
+    description: >
+      Typed games involving at least one FBS team, deduplicated on game_id, with
+      canonical conference names and outcome columns.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+      - name: home_won
+        description: Null until the game is completed.
+
+  - name: silver_teams
+    description: FBS teams, one row per team, canonical conference names.
+    columns:
+      - name: team
+        tests: [unique, not_null]
+      - name: is_notre_dame
+        description: Drives the Notre Dame automatic-qualifier rule in the CFP logic.
+
+  - name: silver_conferences
+    description: Conference reference, one row per canonical conference.
+    columns:
+      - name: conference
+        tests: [unique, not_null]
+
+  - name: silver_sp_plus
+    description: Season SP+ ratings. Higher sp_overall/sp_offense is better; lower sp_defense is better.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: team
+        tests: [not_null]
+
+  - name: silver_ppa_teams
+    description: Season PPA. Higher ppa_offense is better; lower ppa_defense is better.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: team
+        tests: [not_null]
+
+  - name: silver_ppa_games
+    description: Per-game PPA, one row per team per game.
+
+  - name: silver_lines_all
+    description: Every sportsbook line for a game, one row per provider.
+
+  - name: silver_lines
+    description: One preferred line per game (consensus first, then major books).
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+
+  - name: silver_rankings
+    description: Poll rankings flattened from polls -> ranks.
+
+  - name: silver_talent
+    description: Composite talent per team-season.
+
+  - name: silver_recruiting_teams
+    description: Recruiting class rank and points per team-season.
