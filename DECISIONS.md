@@ -18,7 +18,9 @@
 | Raw data | One shared volume in `cfb_saturday_hq_raw.landing`, outside both environments: the CFBD API is called once and dev reads exactly what prod reads. Bronze is still per-environment, because it is code output |
 | Model registry | Unity Catalog, `<catalog>.cfb_ml.matchup`, so the model follows the environment. Scored via the `production` alias, falling back to the newest version |
 | Current season | Derived from the date with an August rollover; never edited between runs |
-| Ongoing refresh | CFBD **API** daily |
+| Ongoing refresh | CFBD **API** weekly (Monday), plus a lines-only pull on Friday |
+| Refresh cadence | Games are weekly and every model input moves only after they are played, so a daily pull spent ~13 calls a day for nothing. Monday 10:00 ET captures the full weekend |
+| CFBD call budget | Domains are tiered by how often they change (static / season-static / weekly / market), the API is skipped outside August–January, and postseason endpoints are skipped until December. Steady state is 7-9 calls a week instead of ~91 |
 | Refresh SLA | Daily |
 | CFP logic | Published 2026 12-team rules; model ranking is a stand-in for committee rank |
 

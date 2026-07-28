@@ -87,6 +87,69 @@ HISTORICAL_DOMAINS = (
     "lines",
 )
 
+# CFBD calls are the scarce resource, so the refresh is tiered by how often a domain actually
+# changes rather than pulling all of HISTORICAL_DOMAINS every run.
+#
+# Static: published once and never revised. Fetched only if the file is missing.
+STATIC_DOMAINS = ("conferences",)
+
+# Season-static: settled before kickoff (FBS membership, talent composite, recruiting classes).
+# Fetched on the first in-season run of each season, which lands after National Signing Day.
+SEASON_STATIC_DOMAINS = ("teams_fbs", "talent", "recruiting_teams")
+
+# Weekly: everything that moves when games are played or ratings are re-published.
+WEEKLY_DOMAINS = (
+    "games",
+    "team_season_stats",
+    "sp_plus",
+    "ppa_teams",
+    "ppa_games",
+    "rankings",
+    "lines",
+)
+
+# Market: lines are the only input that moves between game days. Refreshed on its own so a
+# mid-week pull costs 1-2 calls instead of a full weekly run.
+MARKET_DOMAINS = ("lines",)
+
+INGEST_MODES = ("weekly", "market")
+DEFAULT_INGEST_MODE = "weekly"
+INGEST_MODE_VAR = "SATURDAY_HQ_INGEST_MODE"
+
+# In-season window: August kickoff through the January CFP final. Outside it, nothing changes,
+# so the refresh skips the API entirely instead of re-downloading identical JSON.
+SEASON_END_MONTH = 1
+
+# Bowls are not scheduled until early December, so before then the postseason endpoints return
+# nothing and the second call per games/lines pull is pure waste.
+POSTSEASON_FROM_MONTH = 12
+
+
+def in_season(today: Optional[date] = None) -> bool:
+    """True from the August rollover through the end of the January postseason."""
+    today = today or date.today()
+    return today.month >= SEASON_START_MONTH or today.month <= SEASON_END_MONTH
+
+
+def season_types_for(today: Optional[date] = None) -> tuple:
+    """Season types worth requesting today, for the domains that split regular/postseason."""
+    today = today or date.today()
+    if today.month >= POSTSEASON_FROM_MONTH or today.month <= SEASON_END_MONTH:
+        return ("regular", "postseason")
+    return ("regular",)
+
+
+def current_ingest_mode(override: Optional[str] = None) -> str:
+    """Ingest mode for this run: an explicit override, else SATURDAY_HQ_INGEST_MODE, else weekly.
+
+    The Friday job sets this to "market" on its cluster so the same notebook pulls only lines.
+    """
+    mode = (override or os.environ.get(INGEST_MODE_VAR) or DEFAULT_INGEST_MODE).strip().lower()
+    if mode not in INGEST_MODES:
+        raise ValueError(f"{INGEST_MODE_VAR} must be one of {INGEST_MODES}, got {mode!r}")
+    return mode
+
+
 DISCLAIMER_MARKET = (
     "For analysis and entertainment only. Not gambling advice. "
     "Lines are public market context shown next to the model."

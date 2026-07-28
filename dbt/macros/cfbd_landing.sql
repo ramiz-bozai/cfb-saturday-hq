@@ -1,7 +1,7 @@
 {#
     Helpers for reading CFBD JSONL out of the Unity Catalog Volume.
 
-    Layouts written by notebooks/01_download_historical_to_volume.py and the weekly refresh:
+    Layouts written by notebooks/01_download_historical_to_volume.py and notebooks/04_weekly_ingest.py:
       historical/<domain>/year=YYYY/<domain>.jsonl
       incremental/dt=YYYY-MM-DD/<domain>/<domain>.jsonl
 #}
@@ -10,8 +10,8 @@
     Ordering for the silver dedupes: when the same natural key lands more than once, keep
     the newest copy. Incremental drops beat the historical backfill, and a later
     dt=YYYY-MM-DD beats an earlier one because the path sorts lexicographically. This is
-    what makes re-running the daily refresh safe — a game that was scheduled yesterday and
-    final today resolves to today's row.
+    what makes re-running the weekly refresh safe — a game that was scheduled in one drop and
+    final in a later one resolves to the later row.
 #}
 {% macro latest_ingest_first() -%}
     case when _ingest_mode = 'incremental' then 1 else 0 end desc, _source_path desc

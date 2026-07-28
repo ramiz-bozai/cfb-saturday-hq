@@ -1,10 +1,12 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 05 — Daily score and serve
+# MAGIC # 05 — Weekly score and serve
 # MAGIC
-# MAGIC Last leg of the daily loop, after `04_daily_ingest.py` and the job's dbt task have
+# MAGIC Last leg of the weekly loop, after `04_weekly_ingest.py` and the job's dbt task have
 # MAGIC refreshed gold. Scores the slate with the registered model, then rebuilds the serving
 # MAGIC marts: preseason ratings, playoff sims, and weekly briefs.
+# MAGIC
+# MAGIC Makes no API calls, so it is free to re-run.
 # MAGIC
 # MAGIC No dbt call afterwards — `cfb_gold.matchup_card` is a dbt **view**, so the probabilities
 # MAGIC written here are visible through it immediately.
@@ -50,7 +52,7 @@ simulate_season(
 )
 generate_weekly_briefs(config, season=config.current_season, week=WEEK)
 
-print("daily refresh complete for season", config.current_season)
+print("weekly refresh complete for season", config.current_season)
 
 # COMMAND ----------
 

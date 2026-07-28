@@ -3,7 +3,7 @@
 FBS college football intelligence on Databricks using [CollegeFootballData](https://collegefootballdata.com/).
 
 ## What it is
-- Historical CFBD data downloaded into a Unity Catalog **Volume**, plus a daily **API** refresh into `incremental/`
+- Historical CFBD data downloaded into a Unity Catalog **Volume**, plus a **weekly API** refresh into `incremental/`
 - **dbt** owns every transformation: bronze (`read_files` over the Volume) → silver → gold
 - **dev and prod catalogs** for the medallion, over **one shared raw volume** — the API is called once
 - Season is derived from the date (August rollover), so every run after the backfill is incremental for the current season with no edits
@@ -41,6 +41,40 @@ Raw files sit outside both environments on purpose: dev and prod each build thei
 from the identical inputs, so the medallion stays strict inside each catalog and CFBD is never
 hit twice. Everything follows one variable — `SATURDAY_HQ_ENV` on the cluster for Python,
 `--target` for dbt — both set from the bundle target.
+
+## Refresh cadence and the CFBD call budget
+
+CFBD calls are the scarce resource, so the schedule is built around them.
+
+| Job | When | Pulls | Calls |
+|---|---|---|---|
+| `saturday-hq-weekly-refresh` | Monday 10:00 ET | games, sp_plus, ppa_teams, ppa_games, rankings, team_season_stats, lines | 7–9 |
+| `saturday-hq-market-refresh` | Friday 10:00 ET | lines only | 1–2 |
+| `saturday-hq-historical-backfill` | once, by hand | every domain, every season | ~145 |
+
+Four things keep the weekly number down:
+
+**Weekly, not daily.** Games are played weekly and every model input — scores, SP+, PPA — only
+moves after they are played. Monday morning captures the entire weekend, late West Coast
+finishes included. A daily schedule spent ~13 calls a day re-downloading identical JSON.
+
+**Domains are tiered by how often they actually change.** `conferences` is fetched only if no
+copy exists. `teams_fbs`, `talent` and `recruiting_teams` are settled before kickoff, so they
+are fetched on the first in-season run of a season — which lands after National Signing Day —
+and a marker file at `incremental/_state/season_static_<season>.json` stops later runs from
+repeating them. Only genuinely weekly domains run weekly. Tiers live in `config.py`;
+`plan_domains()` applies them.
+
+**No offseason calls.** `notebooks/04_weekly_ingest.py` exits early from February through July,
+when nothing in college football changes.
+
+**No pointless postseason calls.** `games` and `lines` cost one call *per season type*. Bowls
+are not scheduled until December, so before then the refresh asks for `regular` only and skips
+the second call.
+
+One thing that looks like a saving but is not: scoping a pull to `week=N` instead of the whole
+season. It is the same single request either way, and the season-wide pull is what lets a
+corrected score or a rescheduled game land later. `WEEK` stays `None` on purpose.
 
 ## Start here
 1. Read `DECISIONS.md`
@@ -120,7 +154,7 @@ files directly with `read_files()`, wrapped in the `cfbd_union` macro:
 ```
 
 The macro reads two places and unions them: the one-time `historical/` backfill and every
-`incremental/dt=YYYY-MM-DD/` drop the daily refresh has written. Both roots hang off one var, so
+`incremental/dt=YYYY-MM-DD/` drop the weekly refresh has written. Both roots hang off one var, so
 repointing at a different volume is a one-line change:
 
 ```yaml
@@ -135,7 +169,7 @@ inputs.
 
 `include_incremental` is the only var you ever pass on the command line, and only once. Set it to
 `false` for the very first build, because at that point no `incremental/` folder exists yet and
-`read_files()` errors on a glob matching zero files. After the first daily refresh, leave it alone.
+`read_files()` errors on a glob matching zero files. After the first weekly refresh, leave it alone.
 
 The single dbt **source** in the project is `cfb_gold.game_predictions` — a table dbt reads but
 does not own.
@@ -143,12 +177,13 @@ does not own.
 ### Why re-running is safe
 
 Since bronze re-reads the backfill *plus* every drop, the same game legitimately appears many
-times: scheduled in Tuesday's pull, final score in Sunday's. Every silver model dedupes on its
+times: scheduled in one Monday's pull, final score in the next. Every silver model dedupes on its
 natural key and keeps the newest copy, ordering by `latest_ingest_first()` — incremental beats
 historical, and a later `dt=` beats an earlier one.
 
 The practical upshot: **runs are idempotent and you never clean anything out between them.** Run
-the refresh twice in one day, or re-run a week later, and you get the same answer.
+the refresh twice in one day, or re-run a week later, and you get the same answer. That is also
+why the Friday market job is safe: it drops a lines-only file and dbt sorts out precedence.
 
 ### Two targets, one project
 
@@ -229,7 +264,7 @@ dbt docs generate && dbt docs serve                # click through the lineage g
 
 Each environment needs the `include_incremental: false` treatment for *its* first build only —
 that flag is about whether any `incremental/` folder exists yet, which is a property of the
-shared volume, so once the first daily refresh has run neither environment needs it again.
+shared volume, so once the first weekly refresh has run neither environment needs it again.
 
 ---
 
