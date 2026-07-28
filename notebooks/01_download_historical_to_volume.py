@@ -3,7 +3,11 @@
 # MAGIC # 01 — Download historical CFBD data into Volume
 # MAGIC Writes JSONL under
 # MAGIC `/Volumes/cfb_saturday_hq_raw/landing/cfbd_landing/historical/...`
-# MAGIC Uses the API once for backfill; daily refresh uses the incremental path.
+# MAGIC Uses the API once for backfill; the weekly refresh uses the incremental path.
+# MAGIC
+# MAGIC **Call cost:** 12 CFBD calls per season (both season types for `games` and `lines`),
+# MAGIC plus 1 for conferences, so a 2015→2026 backfill is roughly 145 calls. The smoke test
+# MAGIC adds 4. This is the most expensive thing in the project and it only runs once.
 # MAGIC
 # MAGIC The landing volume is **shared by every environment**, so there is no environment to
 # MAGIC pick here and this only needs to run once. dev and prod each build their own
@@ -20,6 +24,7 @@ HISTORY_START_YEAR = 2015
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 END_YEAR = None  # None => CURRENT_SEASON
 DOMAINS = None  # None => all HISTORICAL_DOMAINS; or e.g. ["teams_fbs", "games", "sp_plus"]
+RUN_SMOKE_TEST = True  # False => skip the 4-call one-year probe on a re-run
 SECRET_SCOPE = "cfb_saturday_hq"
 SECRET_KEY = "cfbd_api_key"
 
@@ -49,14 +54,17 @@ client = CFBDClient(api_key, config)
 
 # COMMAND ----------
 
-# Optional: smoke-test one year before full backfill
-smoke = download_historical_to_volume(
-    client,
-    config,
-    years=[config.history_start_year],
-    domains=["teams_fbs", "games", "sp_plus"],
-)
-display(spark.createDataFrame(smoke))
+# Optional: smoke-test one year before committing to the full backfill (4 calls).
+if RUN_SMOKE_TEST:
+    smoke = download_historical_to_volume(
+        client,
+        config,
+        years=[config.history_start_year],
+        domains=["teams_fbs", "games", "sp_plus"],
+    )
+    display(spark.createDataFrame(smoke))
+else:
+    print("smoke test skipped")
 
 # COMMAND ----------
 

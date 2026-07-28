@@ -14,11 +14,89 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 
 from saturday_hq.cfbd_client import CFBDClient, dumps_jsonl
-from saturday_hq.config import HISTORICAL_DOMAINS, SaturdayHQConfig
+from saturday_hq.config import (
+    HISTORICAL_DOMAINS,
+    MARKET_DOMAINS,
+    SEASON_STATIC_DOMAINS,
+    STATIC_DOMAINS,
+    WEEKLY_DOMAINS,
+    SaturdayHQConfig,
+)
 
 
 def _ensure_dir(path: str) -> None:
     Path(path).mkdir(parents=True, exist_ok=True)
+
+
+def _season_static_marker(config: SaturdayHQConfig, season: int) -> Path:
+    return Path(f"{config.incremental_path}/_state/season_static_{season}.json")
+
+
+def plan_domains(
+    config: SaturdayHQConfig,
+    season: int,
+    mode: str = "weekly",
+) -> List[str]:
+    """Domains worth calling for this run, cheapest correct set.
+
+    CFBD calls are the scarce resource, so a run pulls only what can have changed:
+
+    - "market" -> lines only. This is the mid-week refresh.
+    - "weekly" -> everything that moves when games are played, plus the season-static
+      domains on the first in-season run of a season, plus static reference data if its
+      file is missing.
+    """
+    if mode == "market":
+        return list(MARKET_DOMAINS)
+
+    domains = list(WEEKLY_DOMAINS)
+
+    # Reference data that is published once. Only fetch when no copy exists anywhere yet,
+    # checking the incremental drops too so a fetched copy is not re-fetched every week.
+    for domain in STATIC_DOMAINS:
+        in_historical = Path(
+            f"{config.historical_path}/{domain}/year=0/{domain}.jsonl"
+        ).exists()
+        in_incremental = any(
+            Path(config.incremental_path).glob(f"dt=*/{domain}/{domain}.jsonl")
+        )
+        if not in_historical and not in_incremental:
+            domains.append(domain)
+
+    # FBS membership, talent, recruiting: settled before kickoff, so once per season.
+    if not _season_static_marker(config, season).exists():
+        domains += list(SEASON_STATIC_DOMAINS)
+
+    return domains
+
+
+def mark_season_static_done(config: SaturdayHQConfig, season: int, manifest: List[dict]) -> None:
+    """Record that a season's static domains were pulled, so later runs skip them.
+
+    Only writes when every season-static domain came back without an error, so a partial
+    failure retries next run instead of being silently skipped for the rest of the season.
+    """
+    pulled = {
+        row["domain"]: row
+        for row in manifest
+        if row["domain"] in SEASON_STATIC_DOMAINS and not row.get("error")
+    }
+    if not all(domain in pulled for domain in SEASON_STATIC_DOMAINS):
+        return
+    marker = _season_static_marker(config, season)
+    _ensure_dir(str(marker.parent))
+    marker.write_text(
+        json.dumps(
+            {
+                "season": season,
+                "domains": list(SEASON_STATIC_DOMAINS),
+                "written_at": datetime.now(timezone.utc).isoformat(),
+                "rows": {d: pulled[d]["rows"] for d in SEASON_STATIC_DOMAINS},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
 
 
 def write_jsonl(path: str, records: list) -> int:
@@ -111,8 +189,13 @@ def download_incremental_to_volume(
     year: int,
     domains: Optional[Sequence[str]] = None,
     week: Optional[int] = None,
+    season_types: Sequence[str] = ("regular", "postseason"),
 ) -> List[dict]:
-    """Daily/API path: write a dated drop under incremental/."""
+    """In-season refresh path: write a dated drop under incremental/.
+
+    Pass `domains` from plan_domains() rather than defaulting to every domain — the default
+    is the full list, which costs 13 calls.
+    """
     domain_list = list(domains) if domains is not None else list(HISTORICAL_DOMAINS)
     pulled_at = datetime.now(timezone.utc)
     date_str = pulled_at.strftime("%Y-%m-%d")
@@ -126,7 +209,9 @@ def download_incremental_to_volume(
             if domain == "conferences":
                 records = client.fetch_domain("conferences", year=0)
             else:
-                records = client.fetch_domain(domain, year=year, week=week)
+                records = client.fetch_domain(
+                    domain, year=year, week=week, season_types=season_types
+                )
         except Exception as exc:  # noqa: BLE001
             manifest.append(
                 {

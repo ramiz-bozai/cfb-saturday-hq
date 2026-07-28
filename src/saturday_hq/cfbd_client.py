@@ -1,10 +1,10 @@
-"""CFBD REST client used for historical Volume downloads and daily API refresh."""
+"""CFBD REST client used for historical Volume downloads and the weekly API refresh."""
 
 from __future__ import annotations
 
 import json
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -106,16 +106,22 @@ class CFBDClient:
         domain: str,
         year: int,
         week: Optional[int] = None,
+        season_types: Sequence[str] = ("regular", "postseason"),
     ) -> List[Dict[str, Any]]:
+        """Fetch one domain. `games` and `lines` cost one call per season type requested.
+
+        Backfills want both types; an in-season refresh before December should pass
+        ("regular",) only, since the postseason endpoints have nothing to return yet.
+        """
         if domain == "teams_fbs":
             return self.get_fbs_teams(year)
         if domain == "conferences":
             return self.get_conferences()
         if domain == "games":
-            # Regular + postseason for completed seasons; schedule year may be regular only.
-            regular = self.get_games(year, week=week, season_type="regular")
-            post = self.get_games(year, week=week, season_type="postseason")
-            return regular + post
+            records: List[Dict[str, Any]] = []
+            for season_type in season_types:
+                records += self.get_games(year, week=week, season_type=season_type)
+            return records
         if domain == "team_season_stats":
             return self.get_team_season_stats(year)
         if domain == "sp_plus":
@@ -131,9 +137,10 @@ class CFBDClient:
         if domain == "rankings":
             return self.get_rankings(year, week=week)
         if domain == "lines":
-            regular = self.get_lines(year, week=week, season_type="regular")
-            post = self.get_lines(year, week=week, season_type="postseason")
-            return regular + post
+            records = []
+            for season_type in season_types:
+                records += self.get_lines(year, week=week, season_type=season_type)
+            return records
         raise ValueError(f"Unknown domain: {domain}")
 
 
