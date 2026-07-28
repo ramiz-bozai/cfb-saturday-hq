@@ -10,8 +10,10 @@ target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
 vars:
-  # Root of the Unity Catalog Volume that notebook 01 writes CFBD JSONL into.
-  landing_root: /Volumes/cfb_saturday_hq/cfb_bronze/cfbd_landing
+  # Root of the Unity Catalog Volume that notebook 01 writes CFBD JSONL into. Deliberately
+  # NOT inside an environment catalog: dev and prod build their own bronze/silver/gold from
+  # this one shared copy of the raw files, so the CFBD API is only ever called once.
+  landing_root: /Volumes/cfb_saturday_hq_raw/landing/cfbd_landing
   # Steady state: bronze reads the historical backfill plus every incremental/dt=.../ drop,
   # so each run automatically picks up the newest pull for the current season.
   # Only the very first build (before any incremental drop exists) needs

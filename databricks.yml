@@ -4,6 +4,9 @@ bundle:
 include:
   - resources/*.yml
 
+# One variable drives the whole environment split: it becomes SATURDAY_HQ_ENV on the job
+# clusters (which is how the Python notebooks pick their catalog) and the --target passed to
+# the dbt tasks. Raw CFBD files are shared across both, so nothing here points at them.
 targets:
   dev:
     default: true
@@ -13,15 +16,20 @@ targets:
       # host: https://YOUR_WORKSPACE.cloud.databricks.com
       root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
     variables:
-      catalog: cfb_saturday_hq
-      history_start_year: "2015"
-      secret_scope: cfb_saturday_hq
-      secret_key: cfbd_api_key
+      env: dev
+
+  prod:
+    mode: production
+    workspace:
+      # host: https://YOUR_WORKSPACE.cloud.databricks.com
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      env: prod
 
 variables:
-  catalog:
-    description: Unity Catalog name for Saturday HQ
-    default: cfb_saturday_hq
+  env:
+    description: Deployment environment; selects the cfb_saturday_hq_<env> catalog
+    default: dev
   history_start_year:
     description: First season to backfill
     default: "2015"

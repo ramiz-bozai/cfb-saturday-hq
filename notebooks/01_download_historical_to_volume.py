@@ -1,8 +1,13 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # 01 — Download historical CFBD data into Volume
-# MAGIC Writes JSONL under `/Volumes/cfb_saturday_hq/cfb_bronze/cfbd_landing/historical/...`
+# MAGIC Writes JSONL under
+# MAGIC `/Volumes/cfb_saturday_hq_raw/landing/cfbd_landing/historical/...`
 # MAGIC Uses the API once for backfill; daily refresh uses the incremental path.
+# MAGIC
+# MAGIC The landing volume is **shared by every environment**, so there is no environment to
+# MAGIC pick here and this only needs to run once. dev and prod each build their own
+# MAGIC bronze → silver → gold from this one copy of the files.
 
 # COMMAND ----------
 
@@ -37,6 +42,7 @@ config = SaturdayHQConfig(
 end_year = END_YEAR if END_YEAR is not None else config.current_season
 domains = list(DOMAINS) if DOMAINS else list(HISTORICAL_DOMAINS)
 print(f"backfilling {config.history_start_year} -> {end_year}")
+print("shared landing volume:", config.volume_path)
 
 api_key = dbutils.secrets.get(config.secret_scope, config.secret_key)
 client = CFBDClient(api_key, config)

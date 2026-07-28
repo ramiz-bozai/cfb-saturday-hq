@@ -29,7 +29,8 @@ DISCLAIMER_CFP = (
     "Not an official College Football Playoff selection."
 )
 
-CATALOG = os.getenv("SATURDAY_HQ_CATALOG", "cfb_saturday_hq")
+# The App serves prod. Point SATURDAY_HQ_CATALOG at cfb_saturday_hq_dev to preview dev data.
+CATALOG = os.getenv("SATURDAY_HQ_CATALOG", "cfb_saturday_hq_prod")
 GOLD_SCHEMA = os.getenv("SATURDAY_HQ_GOLD_SCHEMA", "cfb_gold")
 APP_SCHEMA = os.getenv("SATURDAY_HQ_APP_SCHEMA", "cfb_app")
 

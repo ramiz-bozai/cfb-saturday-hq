@@ -5,6 +5,7 @@ FBS college football intelligence on Databricks using [CollegeFootballData](http
 ## What it is
 - Historical CFBD data downloaded into a Unity Catalog **Volume**, plus a daily **API** refresh into `incremental/`
 - **dbt** owns every transformation: bronze (`read_files` over the Volume) → silver → gold
+- **dev and prod catalogs** for the medallion, over **one shared raw volume** — the API is called once
 - Season is derived from the date (August rollover), so every run after the backfill is incremental for the current season with no edits
 - Silver/gold marts with **SP+** and **PPA** as first-class metrics
 - Matchup model that does **not** train on betting lines
@@ -28,6 +29,18 @@ graph rather than buried in a subprocess call.
 
 `cfb_gold.matchup_card` is a dbt **view** over the model's predictions, so no dbt run is
 needed after scoring.
+
+## Catalogs
+| Catalog | Holds | Written by |
+|---|---|---|
+| `cfb_saturday_hq_raw` | `landing.cfbd_landing` volume: the CFBD JSONL files | the ingest notebooks, once |
+| `cfb_saturday_hq_dev` | `cfb_bronze` → `cfb_silver` → `cfb_gold`, plus `cfb_ml` / `cfb_app` | local `dbt build`, interactive notebook runs |
+| `cfb_saturday_hq_prod` | the same set | the scheduled jobs (`-t prod`) |
+
+Raw files sit outside both environments on purpose: dev and prod each build their own bronze
+from the identical inputs, so the medallion stays strict inside each catalog and CFBD is never
+hit twice. Everything follows one variable — `SATURDAY_HQ_ENV` on the cluster for Python,
+`--target` for dbt — both set from the bundle target.
 
 ## Start here
 1. Read `DECISIONS.md`
@@ -112,9 +125,13 @@ repointing at a different volume is a one-line change:
 
 ```yaml
 vars:
-  landing_root: /Volumes/cfb_saturday_hq/cfb_bronze/cfbd_landing
+  landing_root: /Volumes/cfb_saturday_hq_raw/landing/cfbd_landing
   include_incremental: true
 ```
+
+Note that `landing_root` is **not** parameterized by environment. It points into
+`cfb_saturday_hq_raw` for both targets, which is what makes dev and prod read byte-identical
+inputs.
 
 `include_incremental` is the only var you ever pass on the command line, and only once. Set it to
 `false` for the very first build, because at that point no `incremental/` folder exists yet and
@@ -132,6 +149,19 @@ historical, and a later `dt=` beats an earlier one.
 
 The practical upshot: **runs are idempotent and you never clean anything out between them.** Run
 the refresh twice in one day, or re-run a week later, and you get the same answer.
+
+### Two targets, one project
+
+`dev` and `prod` are dbt targets that differ **only** by catalog — same models, same macros,
+same vars. `dbt build` locally goes to `cfb_saturday_hq_dev`; the jobs run
+`dbt build --target prod`. Nothing in `models/` mentions a catalog, because `ref()` resolves
+within whichever target is active, so promoting a change is just running the same command with
+a different `--target`.
+
+The Python side matches: `SATURDAY_HQ_ENV` on the job cluster picks
+`cfb_saturday_hq_<env>` in `src/saturday_hq/config.py`, and an interactive notebook with no
+such variable defaults to dev. Both come from the bundle target, so `-t prod` moves them
+together.
 
 ### Configuration: why profiles.yml is committed
 
@@ -182,19 +212,24 @@ cd dbt && dbt debug                      # all checks passed?
 Run dbt from the `dbt/` folder and you never need `--profiles-dir`: dbt looks next to
 `dbt_project.yml` before falling back to `~/.dbt/`, and that is exactly where the profile lives.
 
-Fill in `http_path` in `dbt/profiles.yml` the first time — **SQL Warehouses** → your warehouse →
-*Connection details*.
+Fill in `http_path` in `dbt/profiles.yml` the first time (both targets) — **SQL Warehouses** →
+your warehouse → *Connection details*.
 
 ### Commands worth knowing
 
 ```bash
-dbt build --vars '{include_incremental: false}'   # first build only
-dbt build                                          # every run after that
+dbt build --vars '{include_incremental: false}'   # first build in an environment
+dbt build                                          # every run after that (dev)
+dbt build --target prod                            # what the jobs run
 dbt build --select silver_games+                   # a model and everything downstream of it
 dbt build --select tag:bronze                      # one layer
 dbt test  --select silver_games                    # tests only, no rebuild
 dbt docs generate && dbt docs serve                # click through the lineage graph
 ```
+
+Each environment needs the `include_incremental: false` treatment for *its* first build only —
+that flag is about whether any `incremental/` folder exists yet, which is a property of the
+shared volume, so once the first daily refresh has run neither environment needs it again.
 
 ---
 
@@ -203,5 +238,8 @@ dbt docs generate && dbt docs serve                # click through the lineage g
 cd /Users/ramiz.bozai/cfb-saturday-hq
 databricks secrets create-scope cfb_saturday_hq
 databricks secrets put-secret cfb_saturday_hq cfbd_api_key
-databricks bundle deploy -t dev   # after setting workspace host
+
+# after setting workspace host; the target picks the catalog on both sides
+databricks bundle deploy -t dev
+databricks bundle deploy -t prod
 ```

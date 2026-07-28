@@ -14,8 +14,9 @@ from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""
+ENV = ""  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
-MODEL_NAME = "saturday_hq_matchup"
+MODEL_NAME = ""  # blank => <catalog>.cfb_ml.matchup for this environment
 
 if REPO_PATH.strip():
     sys.path.insert(0, f"{REPO_PATH.strip()}/src")
@@ -26,12 +27,14 @@ else:
 from saturday_hq.config import SaturdayHQConfig, current_cfb_season
 from saturday_hq.ml.train import train_and_register, score_games
 
-config = SaturdayHQConfig(current_season=CURRENT_SEASON or current_cfb_season())
-print("season:", config.current_season)
+config = SaturdayHQConfig(env=ENV, current_season=CURRENT_SEASON or current_cfb_season())
+model_name = MODEL_NAME or config.model_name
+print("env:", config.env, "| catalog:", config.catalog)
+print("season:", config.current_season, "| model:", model_name)
 
 # COMMAND ----------
 
-summary = train_and_register(config, model_name=MODEL_NAME)
+summary = train_and_register(config, model_name=model_name)
 print(summary)
 
 # COMMAND ----------
@@ -39,7 +42,7 @@ print(summary)
 # Score historical + current season for dashboards / calibration / slate
 pred_table = score_games(
     config,
-    model_name=MODEL_NAME,
+    model_name=model_name,
     seasons=list(range(config.history_start_year, config.current_season + 1)),
 )
 print("wrote", pred_table)

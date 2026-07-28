@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
@@ -15,6 +16,36 @@ def current_cfb_season(today: Optional[date] = None) -> int:
     """Season CFBD is currently publishing: the in-progress one, else the last completed one."""
     today = today or date.today()
     return today.year if today.month >= SEASON_START_MONTH else today.year - 1
+
+
+# Bronze/silver/gold are built once per environment, each in its own catalog. The raw CFBD
+# files are NOT: they land in one shared volume that neither environment owns, so the API is
+# only ever called once and dev reads exactly what prod reads.
+CATALOG_PREFIX = "cfb_saturday_hq"
+ENVIRONMENTS = ("dev", "prod")
+DEFAULT_ENV = "dev"
+ENV_VAR = "SATURDAY_HQ_ENV"
+
+RAW_CATALOG = f"{CATALOG_PREFIX}_raw"
+RAW_SCHEMA = "landing"
+
+
+def catalog_for_env(env: str) -> str:
+    if env not in ENVIRONMENTS:
+        raise ValueError(f"env must be one of {ENVIRONMENTS}, got {env!r}")
+    return f"{CATALOG_PREFIX}_{env}"
+
+
+def current_env(override: Optional[str] = None) -> str:
+    """Environment for this run: an explicit override, else SATURDAY_HQ_ENV, else dev.
+
+    Jobs set SATURDAY_HQ_ENV on their cluster from the bundle target, so scheduled runs write
+    to prod while an interactive notebook run stays in dev without anyone editing a constant.
+    """
+    env = (override or os.environ.get(ENV_VAR) or DEFAULT_ENV).strip().lower()
+    if env not in ENVIRONMENTS:
+        raise ValueError(f"{ENV_VAR} must be one of {ENVIRONMENTS}, got {env!r}")
+    return env
 
 
 POWER4_CANONICAL = {"ACC", "Big Ten", "Big 12", "SEC"}
@@ -69,12 +100,15 @@ DISCLAIMER_CFP = (
 
 @dataclass(frozen=True)
 class SaturdayHQConfig:
-    catalog: str = "cfb_saturday_hq"
+    env: str = ""  # blank => SATURDAY_HQ_ENV, else dev
+    catalog: str = ""  # blank => cfb_saturday_hq_<env>
     schema_bronze: str = "cfb_bronze"
     schema_silver: str = "cfb_silver"
     schema_gold: str = "cfb_gold"
     schema_ml: str = "cfb_ml"
     schema_app: str = "cfb_app"
+    raw_catalog: str = RAW_CATALOG
+    raw_schema: str = RAW_SCHEMA
     volume_name: str = "cfbd_landing"
     secret_scope: str = "cfb_saturday_hq"
     secret_key: str = "cfbd_api_key"
@@ -84,9 +118,21 @@ class SaturdayHQConfig:
     cfbd_base_url: str = "https://api.collegefootballdata.com"
     request_pause_seconds: float = 0.25
 
+    def __post_init__(self) -> None:
+        env = current_env(self.env)
+        object.__setattr__(self, "env", env)
+        if not self.catalog:
+            object.__setattr__(self, "catalog", catalog_for_env(env))
+
     @property
     def volume_path(self) -> str:
-        return f"/Volumes/{self.catalog}/{self.schema_bronze}/{self.volume_name}"
+        """Shared landing volume, outside both environment catalogs."""
+        return f"/Volumes/{self.raw_catalog}/{self.raw_schema}/{self.volume_name}"
+
+    @property
+    def model_name(self) -> str:
+        """Unity Catalog registered model, so the model follows the environment."""
+        return self.ml("matchup")
 
     @property
     def historical_path(self) -> str:

@@ -1,12 +1,17 @@
 resources:
   jobs:
     # Both jobs are the same shape: Python ingest -> dbt task -> Python score/serve.
+    #
+    # The environment comes from the bundle target in two matching places: SATURDAY_HQ_ENV on
+    # the cluster (read by src/saturday_hq/config.py) and --target on the dbt tasks. Deploy
+    # with -t dev or -t prod and both sides move together.
+    #
     # The dbt tasks carry no warehouse_id on purpose, which is what lets them use the
     # committed dbt/profiles.yml. profiles_directory is left unset because it defaults to
     # the dbt project root, and that is where profiles.yml lives. Databricks injects
     # DBT_ACCESS_TOKEN for the Run As principal at run time.
     saturday_hq_daily:
-      name: saturday-hq-daily-refresh
+      name: saturday-hq-daily-refresh-${var.env}
       schedule:
         quartz_cron_expression: "0 0 10 * * ?"
         timezone_id: America/New_York
@@ -17,6 +22,8 @@ resources:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
+            spark_env_vars:
+              SATURDAY_HQ_ENV: ${var.env}
       tasks:
         - task_key: ingest
           job_cluster_key: main
@@ -30,7 +37,7 @@ resources:
           dbt_task:
             project_directory: ../dbt
             commands:
-              - dbt build
+              - dbt build --target ${var.env}
           libraries:
             - pypi:
                 package: dbt-databricks>=1.8.0,<2.0.0
@@ -43,14 +50,18 @@ resources:
             notebook_path: ../notebooks/05_daily_score_and_serve.py
 
     saturday_hq_backfill:
-      name: saturday-hq-historical-backfill
+      name: saturday-hq-historical-backfill-${var.env}
       job_clusters:
         - job_cluster_key: main
           new_cluster:
             spark_version: 15.4.x-scala2.12
             node_type_id: i3.xlarge
             num_workers: 2
+            spark_env_vars:
+              SATURDAY_HQ_ENV: ${var.env}
       tasks:
+        # Writes to the shared raw volume, so this only ever needs to run once, from either
+        # environment. Re-running it from the other one would just re-download the same files.
         - task_key: download_historical
           job_cluster_key: main
           notebook_task:
@@ -65,7 +76,7 @@ resources:
             project_directory: ../dbt
             commands:
               # Quoted: the ": " inside --vars would otherwise parse as a YAML mapping.
-              - "dbt build --vars '{include_incremental: false}'"
+              - "dbt build --target ${var.env} --vars '{include_incremental: false}'"
           libraries:
             - pypi:
                 package: dbt-databricks>=1.8.0,<2.0.0

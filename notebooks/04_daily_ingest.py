@@ -5,6 +5,10 @@
 # MAGIC First leg of the daily loop: pull today's CFBD snapshot for the current season into
 # MAGIC Volume `incremental/dt=YYYY-MM-DD/`.
 # MAGIC
+# MAGIC The landing volume is **shared by every environment** (`cfb_saturday_hq_raw.landing`),
+# MAGIC so this notebook has no environment to pick: it calls the API once and both dev and
+# MAGIC prod build their own bronze → silver → gold from the same files.
+# MAGIC
 # MAGIC The `saturday-hq-daily-refresh` job runs three tasks in a row, which is the same
 # MAGIC Python → dbt → Python handoff the backfill job uses:
 # MAGIC
@@ -42,6 +46,7 @@ config = SaturdayHQConfig(
     secret_key=SECRET_KEY,
 )
 print("season:", config.current_season)
+print("shared landing volume:", config.volume_path)
 
 api_key = dbutils.secrets.get(config.secret_scope, config.secret_key)
 client = CFBDClient(api_key, config)

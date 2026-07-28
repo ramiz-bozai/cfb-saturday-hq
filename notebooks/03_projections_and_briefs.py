@@ -11,6 +11,7 @@ from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""
+ENV = ""  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 N_SIMS = 2000
 WEEK = None  # None => latest available week in data
@@ -28,7 +29,8 @@ from saturday_hq.projections.simulator import build_preseason_ratings, simulate_
 from saturday_hq.briefs.generate import generate_weekly_briefs
 from saturday_hq.cfp_rules import CFP_RULES_TEXT
 
-config = SaturdayHQConfig(current_season=CURRENT_SEASON or current_cfb_season())
+config = SaturdayHQConfig(env=ENV, current_season=CURRENT_SEASON or current_cfb_season())
+print("env:", config.env, "| catalog:", config.catalog)
 print("season:", config.current_season)
 print(CFP_RULES_TEXT[:500], "...")
 
