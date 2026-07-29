@@ -1,37 +1,140 @@
 version: 2
 
+# Descriptions here become Unity Catalog comments (persist_docs in dbt_project.yml), so they are
+# what Genie and Catalog Explorer show. docs/DATA_DICTIONARY.md carries the long-form version,
+# including measured ranges and coverage gaps.
+
 models:
   - name: gold_team_week
     description: >
       Team-season-week form (record, point differential, last-3 margin) joined to season
-      SP+/PPA/talent/recruiting. This is the as-of feature source for game_features.
+      SP+/PPA/talent/recruiting. This is the as-of feature source for game_features. Cumulative
+      columns include the current week's game, so consumers must join on week < game week.
     columns:
       - name: season
         tests: [not_null]
       - name: team
         tests: [not_null]
+      - name: week
+        description: Week within the season. Record columns are cumulative through this week, inclusive.
+      - name: conference
+        description: >
+          Conference as of THIS season, before any later realignment — a 2016 Oregon row reads
+          Pac-12, not Big Ten. Correct for historical reporting; do not restate it as current.
       - name: conference_group
         description: Power4 / G6 / Independent / Other.
+      - name: game_id
+        description: The game this row's week is anchored to — that week's individual result.
+      - name: opponent
+        description: Who the team played that week.
+      - name: is_home
+        description: Whether the team was at home that week.
+      - name: points_for
+        description: Points the team scored in that week's game, not a season total.
+      - name: points_against
+        description: Points the team allowed in that week's game, not a season total.
+      - name: won
+        description: Whether the team won that week's game.
+      - name: games_played
+        description: Games played through this week, including non-FBS opponents.
+      - name: wins
+        description: Wins through this week, including against non-FBS opponents.
+      - name: losses
+        description: Losses through this week, including against non-FBS opponents.
+      - name: fbs_games_played
+        description: Games against FBS opponents through this week.
+      - name: fbs_wins
+        description: Wins against FBS opponents through this week.
+      - name: ppa_offense_passing
+        description: This season's offensive PPA per play on passes. Higher is better.
+      - name: ppa_offense_rushing
+        description: This season's offensive PPA per play on runs. Higher is better.
+      - name: ppa_defense_passing
+        description: This season's PPA allowed per play against the pass. Lower is better.
+      - name: ppa_defense_rushing
+        description: This season's PPA allowed per play against the run. Lower is better.
       - name: win_pct
         description: Literal record, including games against non-FBS opponents. Use this for reporting.
       - name: win_pct_fbs
         description: >
           Record against FBS opponents only. Null before a team's first FBS game of the
           season. This is what the model uses.
+      - name: point_diff
+        description: Cumulative points scored minus points allowed.
       - name: avg_margin_l3
         description: Average margin over the last 3 completed games, opponent division ignored.
       - name: avg_margin_l3_fbs
         description: >
           Average margin over the last 3 FBS games (not the FBS games among the last 3).
           Non-FBS margins average roughly double, so this is the comparable version.
+      - name: sp_overall
+        description: >
+          This season's SP+, in net points per game against an average opponent. Higher is
+          better. Reporting only — for a finished season it is computed from every game in it.
+      - name: sp_offense
+        description: This season's adjusted points scored per game. Higher is better.
+      - name: sp_defense
+        description: This season's adjusted points allowed per game. LOWER IS BETTER.
+      - name: sp_special_teams
+        description: Points of special-teams value. Higher is better. Missing for 2020-2021.
+      - name: sp_sos
+        description: Schedule strength as a win probability, so HIGHER MEANS EASIER. Only populated 2015-2018.
+      - name: sp_rank
+        description: Rank by sp_overall, 1 = best.
+      - name: ppa_offense
+        description: This season's expected points added per offensive play. Higher is better.
+      - name: ppa_defense
+        description: This season's expected points added allowed per play. LOWER IS BETTER.
+      - name: sp_overall_prior
+        description: Last season's SP+. Knowable before kickoff, so this is the model-safe vintage.
+      - name: sp_offense_prior
+        description: Last season's adjusted points scored per game. Model-safe vintage.
+      - name: sp_defense_prior
+        description: Last season's adjusted points allowed per game. Lower is better. Model-safe vintage.
+      - name: ppa_offense_prior
+        description: Last season's offensive PPA per play. Model-safe vintage.
+      - name: ppa_defense_prior
+        description: Last season's PPA allowed per play. Lower is better. Model-safe vintage.
+      - name: talent
+        description: >
+          247Sports composite roster talent, known before the season. Higher is better. A 0 for
+          Air Force, Army or Navy from 2022 is a real value meaning almost no composite-rated
+          recruits, not a missing one. Air Force and Navy are genuinely null for 2025.
+      - name: recruiting_points
+        description: Composite score of this season's incoming signing class. Higher is better.
+      - name: recruiting_rank
+        description: Rank of this season's signing class, 1 = best.
+      - name: is_notre_dame
+        description: Drives the Notre Dame automatic-qualifier rule in the CFP logic.
 
   - name: gold_game_features
     description: >
       One row per FBS-vs-FBS game with both sides' as-of features, market line fields,
       and labels. Market columns are for display only and are excluded from FEATURE_COLS.
+      Form is drawn strictly from weeks before the game.
     columns:
       - name: game_id
         tests: [unique, not_null]
+      - name: home_feature_week
+        description: >
+          Which team_week row supplied the home side's form. Always strictly less than week,
+          because a team_week row includes its own week's result.
+      - name: away_feature_week
+        description: Same for the away side. Always strictly less than week.
+      - name: margin_home
+        description: home_points - away_points. Positive means the home team won.
+      - name: total_points
+        description: Combined score, comparable against market_ou.
+      - name: market_spread
+        description: >
+          Closing spread from the HOME team's perspective. Negative means the home team is
+          favoured; -7 is the home team by a touchdown.
+      - name: market_spread_open
+        description: The spread when the game opened, before line movement.
+      - name: market_ou
+        description: Market's predicted combined score (the total, or over/under).
+      - name: market_home_ml
+        description: American-odds price on a straight home win. Only ~27% of games are priced.
       - name: market_home_win_prob_implied
         description: Implied from the American home moneyline, vig included. Market context, not a recommendation.
       - name: market_home_win_prob_novig
@@ -43,6 +146,24 @@ models:
           computed from the game itself. FEATURE_COLS uses sp_overall_diff_prior.
       - name: sp_overall_diff_prior
         description: Prior-season SP+ difference, knowable before kickoff. Used by the model.
+      - name: ppa_offense_diff
+        description: >
+          This season's home minus away offensive PPA. Reporting only, for the same reason as
+          sp_overall_diff. FEATURE_COLS uses ppa_offense_diff_prior.
+      - name: ppa_defense_diff
+        description: >
+          This season's home minus away PPA allowed. Reporting only. Lower is better for a
+          defence, so a negative value favours the home team.
+      - name: ppa_offense_diff_prior
+        description: Home minus away prior-season offensive PPA. Positive favours the home team.
+      - name: ppa_defense_diff_prior
+        description: >
+          Home minus away prior-season PPA allowed. Lower is better for a defence, so a NEGATIVE
+          value favours the home team.
+      - name: talent_diff
+        description: >
+          Home minus away roster talent, same season (signing day precedes the season). Distorted
+          in games involving the service academies, whose talent is 0 for coverage reasons.
 
   - name: gold_matchup_card
     description: >
@@ -54,6 +175,10 @@ models:
         tests: [unique, not_null]
       - name: model_home_win_prob
         description: Null until the scoring notebook has run for that game's season.
+      - name: model_version
+        description: Registered model version that produced the probability.
+      - name: scored_at
+        description: When the scoring run wrote this prediction.
       - name: model_minus_market_home
         description: >
           model_home_win_prob minus the de-vigged market probability. A disagreement, not an

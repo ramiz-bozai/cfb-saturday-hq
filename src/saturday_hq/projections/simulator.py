@@ -11,6 +11,7 @@ from pyspark.sql import functions as F
 
 from saturday_hq.cfp_rules import TeamSeedInput, select_playoff_field
 from saturday_hq.config import DISCLAIMER_CFP, SaturdayHQConfig
+from saturday_hq.table_docs import document_table
 
 
 def _spark() -> SparkSession:
@@ -80,6 +81,7 @@ def build_preseason_ratings(config: SaturdayHQConfig, season: Optional[int] = No
     sdf = spark.createDataFrame(pdf[keep])
     table = config.gold("preseason_team_ratings")
     sdf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    document_table(spark, table, "preseason_team_ratings")
     return table
 
 
@@ -245,10 +247,12 @@ def simulate_season(
     proj = spark.createDataFrame(pd.DataFrame(rows))
     table = config.gold("season_projections")
     proj.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    document_table(spark, table, "season_projections")
 
     # Convenience playoff board
     playoff = proj.orderBy(F.col("playoff_odds").desc())
     playoff.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(
         config.gold("playoff_projections")
     )
+    document_table(spark, config.gold("playoff_projections"), "playoff_projections")
     return {"season_projections": table, "playoff_projections": config.gold("playoff_projections")}

@@ -23,6 +23,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from saturday_hq.config import SaturdayHQConfig
+from saturday_hq.table_docs import document_table
 
 # Alias to score with, when one has been assigned in the UC model UI. Scoring falls back to
 # the newest version, so a fresh environment works before anyone promotes anything.
@@ -228,4 +229,5 @@ def score_games(
     sdf = spark.createDataFrame(scored)
     table = config.gold("game_predictions")
     sdf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    document_table(spark, table, "game_predictions")
     return table
