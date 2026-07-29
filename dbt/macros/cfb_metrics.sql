@@ -27,6 +27,28 @@
 {%- endmacro %}
 
 
+{#
+    Two-way de-vig of a moneyline pair.
+
+    Raw implied probabilities do not sum to 1 — in this data they average 1.045, and that 4.5%
+    overround is the book's margin, not an opinion about the game. Left in, it inflates the home
+    side by 2-3 points on every game, which biases any model-minus-market comparison in a single
+    direction. Normalizing by the pair recovers the market's actual view.
+
+    Null when either price is missing, since one side alone cannot be de-vigged.
+#}
+{% macro no_vig_home_prob(home_ml, away_ml) -%}
+    case
+        when {{ home_ml }} is null or {{ away_ml }} is null then cast(null as double)
+        else ({{ american_ml_to_prob(home_ml) }})
+            / nullif(
+                ({{ american_ml_to_prob(home_ml) }}) + ({{ american_ml_to_prob(away_ml) }}),
+                0
+            )
+    end
+{%- endmacro %}
+
+
 {# Power 4 / G6 / Independent bucketing used by the gold marts. #}
 {% macro conference_group(conference_col, is_notre_dame_col) -%}
     case

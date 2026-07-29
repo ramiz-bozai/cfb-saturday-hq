@@ -51,16 +51,15 @@ def plan_domains(
 
     domains = list(WEEKLY_DOMAINS)
 
-    # Reference data that is published once. Only fetch when no copy exists anywhere yet,
-    # checking the incremental drops too so a fetched copy is not re-fetched every week.
+    # Reference data that is published once, so it is fetched a single time ever.
+    #
+    # The check deliberately looks at the incremental tree only, ignoring the backfill's copy
+    # under historical/. bronze models union a per-domain glob over incremental/, and
+    # read_files() fails on a glob matching zero files — so every domain needs at least one
+    # incremental file. Fetching this once costs one call and keeps that invariant true: the
+    # first in-season run covers all of HISTORICAL_DOMAINS between the three tiers.
     for domain in STATIC_DOMAINS:
-        in_historical = Path(
-            f"{config.historical_path}/{domain}/year=0/{domain}.jsonl"
-        ).exists()
-        in_incremental = any(
-            Path(config.incremental_path).glob(f"dt=*/{domain}/{domain}.jsonl")
-        )
-        if not in_historical and not in_incremental:
+        if not any(Path(config.incremental_path).glob(f"dt=*/{domain}/{domain}.jsonl")):
             domains.append(domain)
 
     # FBS membership, talent, recruiting: settled before kickoff, so once per season.

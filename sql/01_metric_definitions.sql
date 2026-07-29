@@ -5,7 +5,9 @@
 -- PPA: Predicted Points Added from CFBD /ppa/teams (season) and /ppa/games (game).
 -- FBS only: gold marts are filtered to FBS vs FBS where modeling requires it.
 -- Market implied probability: converted from American moneyline when present.
--- Model win probability: logistic model on SP+/PPA/talent/form features; lines excluded from training.
+-- Model win probability: logistic model on prior-season SP+/PPA, talent, and FBS-only form;
+-- lines excluded from training. Same-season SP+/PPA are reporting columns, not features: for a
+-- finished season CFBD computes them from the game itself.
 -- Playoff odds: Monte Carlo using model probs + published 2026 CFP AQ rules; not official.
 
 -- Example certified queries
@@ -15,7 +17,7 @@
 -- ORDER BY sp_overall DESC;
 
 -- SELECT season, week, home_team, away_team, model_home_win_prob,
---        market_home_win_prob_implied, model_minus_market_home, market_spread
+--        market_home_win_prob_novig, model_minus_market_home, market_spread
 -- FROM cfb_saturday_hq_prod.cfb_gold.matchup_card
 -- WHERE season = 2026 AND week = 1
 -- ORDER BY abs(model_minus_market_home) DESC NULLS LAST;

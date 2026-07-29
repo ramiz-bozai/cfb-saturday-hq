@@ -29,22 +29,33 @@ from saturday_hq.config import SaturdayHQConfig
 MODEL_ALIAS = "production"
 
 FEATURE_COLS = [
-    "sp_overall_diff",
-    "home_sp_offense",
-    "home_sp_defense",
-    "away_sp_offense",
-    "away_sp_defense",
-    "ppa_offense_diff",
-    "ppa_defense_diff",
-    "home_ppa_offense",
-    "home_ppa_defense",
-    "away_ppa_offense",
-    "away_ppa_defense",
+    # Prior-season SP+/PPA. The unsuffixed columns are this season's ratings, which CFBD
+    # computes from the whole season — for any finished game they already know its result, so
+    # training on them buys holdout accuracy that does not exist at kickoff. Last season's
+    # ratings are the strongest view of a team that is genuinely available in advance.
+    # Once the weekly job has accumulated in-season rating snapshots, these can be replaced by
+    # a true as-of rating; see DECISIONS.md.
+    "sp_overall_diff_prior",
+    "home_sp_offense_prior",
+    "home_sp_defense_prior",
+    "away_sp_offense_prior",
+    "away_sp_defense_prior",
+    "ppa_offense_diff_prior",
+    "ppa_defense_diff_prior",
+    "home_ppa_offense_prior",
+    "home_ppa_defense_prior",
+    "away_ppa_offense_prior",
+    "away_ppa_defense_prior",
+    # Signing day precedes the season, so the current season's talent composite is fair game.
     "talent_diff",
-    "home_win_pct",
-    "away_win_pct",
-    "home_avg_margin_l3",
-    "away_avg_margin_l3",
+    # FBS-only form. The unsuffixed win_pct / avg_margin_l3 include games against non-FBS
+    # opponents, where margins average roughly double, which makes the two teams in a matchup
+    # incomparable when only one of them has played an FCS opponent. Both live in
+    # gold_game_features; only these belong in the model.
+    "home_win_pct_fbs",
+    "away_win_pct_fbs",
+    "home_avg_margin_l3_fbs",
+    "away_avg_margin_l3_fbs",
     "neutral_site",
 ]
 

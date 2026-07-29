@@ -35,7 +35,7 @@ def generate_weekly_briefs(
         F.col("away_team").alias("opponent"),
         F.lit(True).alias("is_home"),
         F.col("model_home_win_prob").alias("model_win_prob"),
-        F.col("market_home_win_prob_implied").alias("market_win_prob"),
+        F.col("market_home_win_prob_novig").alias("market_win_prob"),
         F.col("market_spread"),
         F.col("home_sp_overall").alias("team_sp"),
         F.col("away_sp_overall").alias("opp_sp"),
@@ -50,7 +50,9 @@ def generate_weekly_briefs(
         F.col("home_team").alias("opponent"),
         F.lit(False).alias("is_home"),
         (1 - F.col("model_home_win_prob")).alias("model_win_prob"),
-        (1 - F.col("market_home_win_prob_implied")).alias("market_win_prob"),
+        # Valid only because the de-vigged pair sums to 1; with the raw price it did not, so the
+        # away side's market probability used to come out roughly 2 points light.
+        (1 - F.col("market_home_win_prob_novig")).alias("market_win_prob"),
         (-F.col("market_spread")).alias("market_spread"),
         F.col("away_sp_overall").alias("team_sp"),
         F.col("home_sp_overall").alias("opp_sp"),

@@ -12,6 +12,18 @@ models:
         tests: [not_null]
       - name: conference_group
         description: Power4 / G6 / Independent / Other.
+      - name: win_pct
+        description: Literal record, including games against non-FBS opponents. Use this for reporting.
+      - name: win_pct_fbs
+        description: >
+          Record against FBS opponents only. Null before a team's first FBS game of the
+          season. This is what the model uses.
+      - name: avg_margin_l3
+        description: Average margin over the last 3 completed games, opponent division ignored.
+      - name: avg_margin_l3_fbs
+        description: >
+          Average margin over the last 3 FBS games (not the FBS games among the last 3).
+          Non-FBS margins average roughly double, so this is the comparable version.
 
   - name: gold_game_features
     description: >
@@ -21,7 +33,16 @@ models:
       - name: game_id
         tests: [unique, not_null]
       - name: market_home_win_prob_implied
-        description: Implied from the American home moneyline, no vig removal. Market context, not a recommendation.
+        description: Implied from the American home moneyline, vig included. Market context, not a recommendation.
+      - name: market_home_win_prob_novig
+        description: >
+          Home moneyline de-vigged against the away price, so the two sides sum to 1. This is
+          the version to compare with a model probability; null when only one side is priced.
+      - name: sp_overall_diff
+        description: This season's SP+ difference. Reporting only — for a finished season it is
+          computed from the game itself. FEATURE_COLS uses sp_overall_diff_prior.
+      - name: sp_overall_diff_prior
+        description: Prior-season SP+ difference, knowable before kickoff. Used by the model.
 
   - name: gold_matchup_card
     description: >
@@ -33,3 +54,7 @@ models:
         tests: [unique, not_null]
       - name: model_home_win_prob
         description: Null until the scoring notebook has run for that game's season.
+      - name: model_minus_market_home
+        description: >
+          model_home_win_prob minus the de-vigged market probability. A disagreement, not an
+          edge. Null when the game has no two-way moneyline.

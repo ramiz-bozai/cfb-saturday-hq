@@ -14,12 +14,27 @@ models:
         description: Null until the game is completed.
 
   - name: silver_teams
-    description: FBS teams, one row per team, canonical conference names.
+    description: >
+      Current FBS teams, one row per team, canonical conference names. Reflects the most recent
+      season landed, so it is the right dimension for "who is FBS now" (the CFP simulator uses
+      it) but wrong for history — join silver_team_seasons instead.
     columns:
       - name: team
         tests: [unique, not_null]
       - name: is_notre_dame
         description: Drives the Notre Dame automatic-qualifier rule in the CFP logic.
+
+  - name: silver_team_seasons
+    description: >
+      FBS membership and conference as of each season, one row per season-team. Season comes
+      from the landing path via the landing_season macro, since /teams/fbs returns no year.
+    columns:
+      - name: season
+        tests: [not_null]
+      - name: team
+        tests: [not_null]
+      - name: conference
+        description: Canonical conference for that season, before any later realignment.
 
   - name: silver_conferences
     description: Conference reference, one row per canonical conference.

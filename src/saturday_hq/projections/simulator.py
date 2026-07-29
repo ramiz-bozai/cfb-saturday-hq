@@ -23,7 +23,16 @@ def build_preseason_ratings(config: SaturdayHQConfig, season: Optional[int] = No
     season = season or config.current_season
     prior = season - 1
 
-    teams = spark.table(config.silver("teams")).select("team", "conference", "is_notre_dame")
+    # Season-grained, because the CFP automatic-qualifier logic keys off conference and this
+    # function is parameterized by season: silver_teams would hand a 2019 run today's alignment.
+    team_seasons = spark.table(config.silver("team_seasons"))
+    team_cols = ("team", "conference", "is_notre_dame")
+    teams = team_seasons.filter(F.col("season") == season).select(*team_cols)
+    if teams.isEmpty():
+        # A season's membership is not landed until that season's first ingest, so a preseason
+        # run before kickoff falls back to the newest season on hand.
+        newest = team_seasons.agg(F.max("season")).collect()[0][0]
+        teams = team_seasons.filter(F.col("season") == newest).select(*team_cols)
     sp = spark.table(config.silver("sp_plus")).filter(F.col("season") == prior)
     ppa = spark.table(config.silver("ppa_teams")).filter(F.col("season") == prior)
     talent = spark.table(config.silver("talent")).filter(F.col("season") == season)
