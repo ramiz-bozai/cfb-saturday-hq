@@ -18,6 +18,34 @@
 {%- endmacro %}
 
 
+{#
+    Season for a landed file, derived from its path.
+
+    /teams/fbs is the one CFBD payload with no season field of its own — the endpoint takes
+    ?year= but does not echo it back — so the partition the file was written into is the only
+    record of which season it describes.
+
+      historical/<domain>/year=YYYY/...    -> YYYY
+      incremental/dt=YYYY-MM-DD/<domain>/  -> the season containing that date
+
+    The incremental branch mirrors current_cfb_season() in src/saturday_hq/config.py: a season
+    is named for the calendar year it kicks off in and rolls over in August. Keep the 8 below in
+    step with SEASON_START_MONTH there.
+#}
+{% macro landing_season(path_col='_metadata.file_path') -%}
+    {%- set dt = "to_date(regexp_extract(" ~ path_col ~ ", 'dt=([0-9]+-[0-9]+-[0-9]+)', 1))" -%}
+    case
+        when {{ path_col }} rlike 'year=[0-9]+'
+            then cast(regexp_extract({{ path_col }}, 'year=([0-9]+)', 1) as int)
+        when {{ path_col }} rlike 'dt=[0-9]+-[0-9]+-[0-9]+'
+            then case
+                when month({{ dt }}) >= 8 then year({{ dt }})
+                else year({{ dt }}) - 1
+            end
+    end
+{%- endmacro %}
+
+
 {% macro cfbd_read(domain, mode) -%}
     {%- set root = var('landing_root') -%}
     {%- if mode == 'historical' -%}

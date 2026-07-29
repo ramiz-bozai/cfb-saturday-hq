@@ -59,7 +59,7 @@ display(
         "home_team",
         "away_team",
         "model_home_win_prob",
-        "market_home_win_prob_implied",
+        "market_home_win_prob_novig",
         "model_minus_market_home",
         "market_spread",
         "home_sp_overall",

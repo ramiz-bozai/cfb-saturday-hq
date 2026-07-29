@@ -58,8 +58,12 @@ Four things keep the weekly number down:
 moves after they are played. Monday morning captures the entire weekend, late West Coast
 finishes included. A daily schedule spent ~13 calls a day re-downloading identical JSON.
 
-**Domains are tiered by how often they actually change.** `conferences` is fetched only if no
-copy exists. `teams_fbs`, `talent` and `recruiting_teams` are settled before kickoff, so they
+**Domains are tiered by how often they actually change.** `conferences` is fetched once, ever —
+the check looks for a copy in the incremental tree only, because bronze unions a per-domain glob
+over `incremental/` and `read_files()` fails on a glob matching zero files. That is a deliberate
+invariant: the first in-season run of a season covers **all eleven domains** across the three
+tiers, so every bronze model has something to read. `teams_fbs`, `talent` and
+`recruiting_teams` are settled before kickoff, so they
 are fetched on the first in-season run of a season — which lands after National Signing Day —
 and a marker file at `incremental/_state/season_static_<season>.json` stops later runs from
 repeating them. Only genuinely weekly domains run weekly. Tiers live in `config.py`;
@@ -261,6 +265,31 @@ dbt build --select tag:bronze                      # one layer
 dbt test  --select silver_games                    # tests only, no rebuild
 dbt docs generate && dbt docs serve                # click through the lineage graph
 ```
+
+### Checking the model before you train it
+
+```bash
+python scripts/feature_audit.py     # refits FEATURE_COLS locally, prints the market baseline
+```
+
+Worth running before any training job, since it needs only the SQL warehouse and finishes in
+seconds. It refits the exact training pipeline over `gold.game_features` and prints holdout
+metrics beside the sportsbook's own accuracy on the same games.
+
+The market column is the reason it exists. A logistic regression on season aggregates has no
+business beating a sportsbook by much, so an AUC well above the market's means a feature is
+carrying the answer — not that the model is good. That is precisely how the as-of join bug
+below was caught: 0.95 AUC against the market's 0.79. The script warns when the gap exceeds
+five points.
+
+Two leaks worth knowing about, because both are easy to reintroduce:
+
+- **Form** must come from a week *strictly before* the game. A `team_week` row is cumulative
+  through its own week, so joining on `week <= game_week` hands the model the result it is
+  predicting. Guarded by the `gold_game_features_form_precedes_game` test.
+- **SP+ and PPA** are season aggregates. For a finished season they are computed from the game
+  in question, so features use the `_prior` columns (last season's ratings). The unsuffixed
+  ones are for reporting only.
 
 Each environment needs the `include_incremental: false` treatment for *its* first build only —
 that flag is about whether any `incremental/` folder exists yet, which is a property of the

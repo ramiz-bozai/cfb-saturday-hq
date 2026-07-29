@@ -12,7 +12,7 @@
 # MAGIC |---|---|---|
 # MAGIC | weekly | games, sp_plus, ppa_teams, ppa_games, rankings, team_season_stats, lines | every Monday run |
 # MAGIC | season-static | teams_fbs, talent, recruiting_teams | first in-season run of a season |
-# MAGIC | static | conferences | only if no copy exists yet |
+# MAGIC | static | conferences | once ever, if absent from `incremental/` |
 # MAGIC | market | lines | the Friday run (`MODE = "market"`) |
 # MAGIC
 # MAGIC Three further savings: nothing is called outside the August→January window, the

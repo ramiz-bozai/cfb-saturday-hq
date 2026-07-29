@@ -94,7 +94,7 @@ def main():
             f"""
             SELECT week, home_team, away_team,
                    round(model_home_win_prob, 3) AS model_home_win_prob,
-                   round(market_home_win_prob_implied, 3) AS market_home_win_prob,
+                   round(market_home_win_prob_novig, 3) AS market_home_win_prob,
                    round(model_minus_market_home, 3) AS model_minus_market,
                    market_spread,
                    round(home_sp_overall, 1) AS home_sp,
