@@ -12,6 +12,7 @@ import mlflow
 import mlflow.sklearn
 import numpy as np
 import pandas as pd
+from mlflow.models import infer_signature
 from mlflow.tracking import MlflowClient
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -146,8 +147,9 @@ def train_and_register(
     mlflow.set_experiment(experiment_name)
     with mlflow.start_run(run_name=f"matchup_{datetime.now(timezone.utc).strftime('%Y%m%d')}") as run:
         pipe.fit(train[FEATURE_COLS], train["label"])
+        train_prob = pipe.predict_proba(train[FEATURE_COLS])[:, 1]
         metrics = {
-            "train": _metrics(train["label"], pipe.predict_proba(train[FEATURE_COLS])[:, 1]),
+            "train": _metrics(train["label"], train_prob),
             "valid": _metrics(valid["label"], pipe.predict_proba(valid[FEATURE_COLS])[:, 1])
             if not valid.empty
             else {},
@@ -169,7 +171,20 @@ def train_and_register(
                 if v is not None:
                     mlflow.log_metric(f"{split}_{k}", v)
 
-        mlflow.sklearn.log_model(pipe, artifact_path="model", registered_model_name=model_name)
+        # Unity Catalog refuses to register a model without a signature. The output is the
+        # positive-class probability rather than a label, because that is what score_games
+        # consumes and what the app and briefs display.
+        signature = infer_signature(train[FEATURE_COLS], train_prob)
+        mlflow.sklearn.log_model(
+            pipe,
+            artifact_path="model",
+            signature=signature,
+            # Pinned rather than left to the default, which MLflow 3 changed to skops. skops
+            # rejects the numpy.dtype references inside a fitted ColumnTransformer unless every
+            # type is declared trusted, so a runtime upgrade would otherwise break this call.
+            serialization_format=mlflow.sklearn.SERIALIZATION_FORMAT_CLOUDPICKLE,
+            registered_model_name=model_name,
+        )
         run_id = run.info.run_id
 
     spark = _spark()
