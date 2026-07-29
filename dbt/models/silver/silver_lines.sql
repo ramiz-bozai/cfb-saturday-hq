@@ -1,17 +1,22 @@
 {{ config(alias='lines') }}
 
--- One market line per game: prefer an explicit consensus, then the major books.
+/*
+    One complete current spread/total quote per game.
+
+    Opening prices and moneylines have different provider coverage, so they live in their own
+    silver models. Requiring this table's fields before ranking prevents a sparse Consensus row
+    from winning merely because its provider name is preferred.
+*/
 with prioritized as (
 
     select
         *,
-        case
-            when lower(provider) = 'consensus' then 0
-            when lower(provider) in ('draftkings', 'bovada', 'bolton') then 1
-            else 2
-        end as provider_priority
+        {{ market_provider_priority() }} as provider_priority
     from {{ ref('silver_lines_all') }}
     where provider is not null
+      and spread is not null
+      and formatted_spread is not null
+      and over_under is not null
 
 )
 
@@ -25,11 +30,7 @@ select
     provider,
     spread,
     formatted_spread,
-    spread_open,
-    over_under,
-    over_under_open,
-    home_moneyline,
-    away_moneyline
+    over_under
 from prioritized
 qualify row_number() over (
     partition by game_id

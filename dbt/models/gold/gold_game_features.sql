@@ -100,17 +100,36 @@ away_form as (
 
 ),
 
-market as (
+current_market as (
 
     select
         game_id,
         provider as line_provider,
         spread as market_spread,
+        over_under as market_ou
+    from {{ ref('silver_lines') }}
+
+),
+
+opening_market as (
+
+    select
+        game_id,
+        provider as opening_line_provider,
         spread_open as market_spread_open,
-        over_under as market_ou,
+        over_under_open as market_ou_open
+    from {{ ref('silver_opening_lines') }}
+
+),
+
+moneyline_market as (
+
+    select
+        game_id,
+        provider as moneyline_provider,
         home_moneyline as market_home_ml,
         away_moneyline as market_away_ml
-    from {{ ref('silver_lines') }}
+    from {{ ref('silver_moneylines') }}
 
 )
 
@@ -135,11 +154,13 @@ select
     hf.* except (game_id),
     af.* except (game_id),
     m.* except (game_id),
+    om.* except (game_id),
+    ml.* except (game_id),
 
     -- Raw conversion of the posted price, vig included: what a bettor actually sees.
-    {{ american_ml_to_prob('m.market_home_ml') }} as market_home_win_prob_implied,
+    {{ american_ml_to_prob('ml.market_home_ml') }} as market_home_win_prob_implied,
     -- Overround removed, so it can be compared with a model probability. See no_vig_home_prob.
-    {{ no_vig_home_prob('m.market_home_ml', 'm.market_away_ml') }} as market_home_win_prob_novig,
+    {{ no_vig_home_prob('ml.market_home_ml', 'ml.market_away_ml') }} as market_home_win_prob_novig,
 
     hf.home_sp_overall - af.away_sp_overall as sp_overall_diff,
     hf.home_ppa_offense - af.away_ppa_offense as ppa_offense_diff,
@@ -160,5 +181,9 @@ left join home_form as hf
     on hf.game_id = g.game_id
 left join away_form as af
     on af.game_id = g.game_id
-left join market as m
+left join current_market as m
     on m.game_id = g.game_id
+left join opening_market as om
+    on om.game_id = g.game_id
+left join moneyline_market as ml
+    on ml.game_id = g.game_id

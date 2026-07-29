@@ -129,18 +129,29 @@ models:
         description: >
           Closing spread from the HOME team's perspective. Negative means the home team is
           favoured; -7 is the home team by a touchdown.
+      - name: line_provider
+        description: Provider of market_spread and market_ou.
       - name: market_spread_open
         description: The spread when the game opened, before line movement.
+      - name: market_ou_open
+        description: The total when the game opened, before line movement.
+      - name: opening_line_provider
+        description: Provider of market_spread_open and market_ou_open.
       - name: market_ou
         description: Market's predicted combined score (the total, or over/under).
       - name: market_home_ml
-        description: American-odds price on a straight home win. Only ~27% of games are priced.
+        description: American-odds price on a straight home win.
+      - name: market_away_ml
+        description: American-odds price on a straight away win from the same provider as the home price.
+      - name: moneyline_provider
+        description: Provider of both market_home_ml and market_away_ml.
       - name: market_home_win_prob_implied
         description: Implied from the American home moneyline, vig included. Market context, not a recommendation.
       - name: market_home_win_prob_novig
         description: >
-          Home moneyline de-vigged against the away price, so the two sides sum to 1. This is
-          the version to compare with a model probability; null when only one side is priced.
+          Home moneyline de-vigged against the same provider's away price, so the two sides sum
+          to 1. This is the version to compare with a model probability; null when the game has
+          no complete two-way moneyline row.
       - name: sp_overall_diff
         description: This season's SP+ difference. Reporting only — for a finished season it is
           computed from the game itself. FEATURE_COLS uses sp_overall_diff_prior.

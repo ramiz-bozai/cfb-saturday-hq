@@ -203,10 +203,19 @@ them deliberately, so that model-versus-market comparisons stay meaningful.
 | `market_spread` | Closing spread, **from the home team's perspective** |
 | `market_spread_open` | The spread when the game first opened for betting |
 | `market_ou` | Predicted combined score (the total, or over/under) |
+| `market_ou_open` | Opening predicted combined score |
 | `market_home_ml`, `market_away_ml` | Moneyline prices in American odds |
 | `market_home_win_prob_implied` | Home moneyline converted to a probability, **vig included** |
 | `market_home_win_prob_novig` | The same, with the bookmaker's margin removed |
-| `line_provider` | Which book the line came from |
+| `line_provider` | Provider of the current spread and total |
+| `opening_line_provider` | Provider of both opening prices |
+| `moneyline_provider` | Provider of both moneyline prices |
+
+The three provider columns are intentionally separate. A Consensus row commonly has a current
+spread but no moneyline or opening price; forcing one provider across every field created avoidable
+nulls. Each pair now comes from one internally coherent quote, and each silver market table
+contains only complete rows for its own contract. A missing gold value means no provider published
+that market, not that a sparse provider happened to win the row-selection rule.
 
 ### The spread's sign
 
@@ -230,9 +239,9 @@ Use the de-vigged one for anything comparative, which is what `model_minus_marke
 also means `1 - market_home_win_prob_novig` is a valid away probability, which was never true of
 the raw column.
 
-Moneylines are the sparsest data here: only 2,270 of 8,326 games have one, or 27%. Coverage is
-dense recently (about 95% of 2024 and 2025 games) and entirely absent in 2015, so any
-model-versus-market analysis is effectively a recent-seasons analysis.
+Moneylines are the sparsest current market here: 3,771 of 8,326 FBS-vs-FBS games have a complete
+two-way price, or 45%. They are entirely absent from 2015-2020, then cover 91-98% of each season
+from 2021 onward. Any model-versus-market analysis is therefore a recent-seasons analysis.
 
 ---
 
@@ -298,7 +307,7 @@ a negative difference is the home team's advantage.
 | `sp_special_teams` | Missing for 2020 and 2021 |
 | `sp_overall` | Two teams missing in 2017 |
 | `talent` | Air Force and Navy null in 2025 — a real gap, and median imputation mistakes it for average talent. The `0`s from 2022 are genuine values, not gaps |
-| Moneylines | 2,270 of 8,326 games (27%); none in 2015, about 95% in 2024-2025 |
+| Moneylines | 3,771 of 8,326 FBS-vs-FBS games (45%); none in 2015-2020, 91-98% per season from 2021 |
 | `_prior` ratings | All 765 games of 2015 (no 2014 backfill), plus 82-115 games a season for teams promoted from FCS |
 | Form columns | Null for the 902 week-1 games, since no prior week exists, and for another ~100 where a team had not yet played an FBS opponent. The training pipeline imputes them |
 | 2020 season | 127 teams and far fewer games — COVID. Expect it to look strange in any season-over-season trend |
