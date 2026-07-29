@@ -144,8 +144,15 @@ models:
         description: Conference exactly as CFBD sent it; join on the canonical `conference` instead.
 
   - name: silver_lines_all
-    description: Every sportsbook line for a game, one row per provider.
+    description: >
+      Every real sportsbook quote for a game, one row per provider. Games whose CFBD payload has
+      an empty lines array have no row here; silver_games remains the source for the game itself.
     columns:
+      - name: game_id
+        tests: [not_null]
+      - name: provider
+        description: Sportsbook or CFBD consensus that published this quote.
+        tests: [not_null]
       - name: spread
         description: >
           Closing spread from the HOME team's perspective. Negative means the home team is
@@ -164,22 +171,89 @@ models:
         description: Price on a straight away win, in American odds.
 
   - name: silver_lines
-    description: One preferred line per game (consensus first, then major books).
+    description: >
+      One complete current spread/total quote per game. Every selected row has provider, spread,
+      formatted_spread, and over_under; moneylines and opening prices live in separate models
+      because they have different source coverage.
     columns:
       - name: game_id
         tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+      - name: week
+        tests: [not_null]
+      - name: season_type
+        tests: [not_null]
+      - name: home_team
+        tests: [not_null]
+      - name: away_team
+        tests: [not_null]
       - name: provider
-        description: Which book this game's surviving line came from.
+        description: Provider of both the selected current spread and total.
+        tests: [not_null]
       - name: spread
         description: Closing spread from the home team's perspective; negative means home favoured.
-      - name: spread_open
-        description: The spread when the game opened, before line movement.
+        tests: [not_null]
       - name: over_under
         description: Predicted combined score.
-      - name: over_under_open
-        description: The total when the game opened.
+        tests: [not_null]
       - name: formatted_spread
         description: Human-readable spread as the book states it, e.g. "Alabama -7.0".
+        tests: [not_null]
+
+  - name: silver_moneylines
+    description: >
+      One complete two-way moneyline per game. Home and away prices always come from the same
+      provider, which makes the pair safe to de-vig. Older unpriced games have no row.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+      - name: week
+        tests: [not_null]
+      - name: season_type
+        tests: [not_null]
+      - name: home_team
+        tests: [not_null]
+      - name: away_team
+        tests: [not_null]
+      - name: provider
+        description: Provider of both moneyline prices.
+        tests: [not_null]
+      - name: home_moneyline
+        description: American-odds price on a straight home win.
+        tests: [not_null]
+      - name: away_moneyline
+        description: American-odds price on a straight away win.
+        tests: [not_null]
+
+  - name: silver_opening_lines
+    description: >
+      One complete opening spread/total quote per game. Both opening fields come from the same
+      provider. Games from seasons before CFBD published opening markets have no row.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: season
+        tests: [not_null]
+      - name: week
+        tests: [not_null]
+      - name: season_type
+        tests: [not_null]
+      - name: home_team
+        tests: [not_null]
+      - name: away_team
+        tests: [not_null]
+      - name: provider
+        description: Provider of both opening prices.
+        tests: [not_null]
+      - name: spread_open
+        description: Opening spread from the home team's perspective.
+        tests: [not_null]
+      - name: over_under_open
+        description: Opening predicted combined score.
+        tests: [not_null]
 
   - name: silver_rankings
     description: >

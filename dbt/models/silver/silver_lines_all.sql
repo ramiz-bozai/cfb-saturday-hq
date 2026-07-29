@@ -21,7 +21,8 @@ with exploded as (
         b._source_path,
         b._ingest_mode
     from {{ ref('bronze_lines') }} as b
-    lateral view outer explode(b.lines) exploded_lines as line
+    lateral view explode(b.lines) exploded_lines as line
+    where line.provider is not null
 
 )
 

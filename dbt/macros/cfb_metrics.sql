@@ -49,6 +49,26 @@
 {%- endmacro %}
 
 
+{#
+    Stable sportsbook preference used by the three canonical market tables.
+
+    Completeness is enforced in each model's WHERE clause before this tie-break runs, so a sparse
+    Consensus row can never beat a complete real-book quote for moneylines or opening lines.
+    Keep the two DraftKings spellings because both occur in the historical CFBD payloads.
+#}
+{% macro market_provider_priority(provider_col='provider') -%}
+    case lower({{ provider_col }})
+        when 'consensus' then 0
+        when 'draftkings' then 1
+        when 'draft kings' then 1
+        when 'bovada' then 2
+        when 'espn bet' then 3
+        when 'caesars' then 4
+        else 9
+    end
+{%- endmacro %}
+
+
 {# Power 4 / G6 / Independent bucketing used by the gold marts. #}
 {% macro conference_group(conference_col, is_notre_dame_col) -%}
     case
