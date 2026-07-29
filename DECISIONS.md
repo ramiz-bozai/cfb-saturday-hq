@@ -27,6 +27,8 @@
 | Ongoing refresh | CFBD **API** weekly (Monday), plus a lines-only pull on Friday |
 | Refresh cadence | Games are weekly and every model input moves only after they are played, so a daily pull spent ~13 calls a day for nothing. Monday 10:00 ET captures the full weekend |
 | CFBD call budget | Domains are tiered by how often they change (static / season-static / weekly / market), the API is skipped outside August–January, and postseason endpoints are skipped until December. Steady state is 7-9 calls a week instead of ~91 |
+| 2014 ratings backfill | **Passed on.** Would have cost 2 calls (`sp_plus`, `ppa_teams`) to give 2015's 765 games their `_prior` features. No regress risk — ratings are a dimension lookup joined on `season - 1`, so 2014 needs no prior season of its own — but 2015 is the one season with zero moneyline coverage, so it cannot contribute to model-vs-market either way. `history_start_year` stays 2015 and 2015 games train without prior ratings |
+| Service academy talent | **Left as is.** The `0` for Air Force / Army / Navy from 2022 is a real value, not a gap: the decline is gradual (Navy 376 → 335 → 266 → 128 → 0) and Army still posts 17.3 in 2022 and 23.7 in 2025, whereas a dropped feed yields nulls. Nulling them would hand 125 games to the median imputer, which fills `talent_diff` with 8.7 ≈ "even talent" and moves home win probability by 14 points on average, up to 35, in the wrong direction. Accepted consequence: Air Force and Navy are genuinely null for 2025 and are median-imputed as average talent |
 | Refresh SLA | Daily |
 | CFP logic | Published 2026 12-team rules; model ranking is a stand-in for committee rank |
 

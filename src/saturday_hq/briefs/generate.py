@@ -9,6 +9,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from saturday_hq.config import DISCLAIMER_CFP, DISCLAIMER_MARKET, SaturdayHQConfig
+from saturday_hq.table_docs import document_table
 
 
 def _spark() -> SparkSession:
@@ -99,4 +100,5 @@ def generate_weekly_briefs(
     out = brief_sql()
     table = config.gold("weekly_brief")
     out.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    document_table(spark, table, "weekly_brief")
     return table

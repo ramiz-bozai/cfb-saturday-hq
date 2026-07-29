@@ -85,12 +85,23 @@ corrected score or a rescheduled game land later. `WEEK` stays `None` on purpose
 2. Follow `docs/STEP_BY_STEP.md` in order
 3. Paste `docs/GENIE_INSTRUCTIONS.md` into your Genie space
 
+## What the stats mean
+`docs/DATA_DICTIONARY.md` covers every stat column: what it measures, which direction is good,
+the range it actually occupies in this data, and where it will mislead you. Worth reading before
+writing a query against SP+ or the market columns, because several conventions are counter to
+intuition — `sp_defense` and `ppa_defense` are better when lower, `sp_sos` is higher for *easier*
+schedules, and a negative `market_spread` means the home team is favoured.
+
+The same definitions are attached to the tables as Unity Catalog column comments, so Genie and
+Catalog Explorer show them inline. dbt applies them for its own models via `persist_docs`; the
+tables Python writes get theirs from `src/saturday_hq/table_docs.py`.
+
 ## Layout
 ```
 cfb-saturday-hq/
   app/                 # Databricks App (Streamlit)
   dbt/                 # dbt project: models, macros, and the committed profiles.yml
-  docs/                # Step-by-step + Genie instructions
+  docs/                # Step-by-step, Genie instructions, data dictionary
   notebooks/           # Python steps, 00 → 05; dbt runs between 01/02 and between 04/05
   resources/           # Databricks Asset Bundle jobs
   sql/                 # UC bootstrap + metric notes

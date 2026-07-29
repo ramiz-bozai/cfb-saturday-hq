@@ -1,5 +1,9 @@
 version: 2
 
+# Descriptions here become Unity Catalog comments (persist_docs in dbt_project.yml), so they are
+# what Genie and Catalog Explorer show. Keep them short and factual; docs/DATA_DICTIONARY.md
+# carries the long-form explanation of every stat, its direction, and its coverage gaps.
+
 models:
   - name: silver_games
     description: >
@@ -9,9 +13,28 @@ models:
       - name: game_id
         tests: [unique, not_null]
       - name: season
+        description: Year the season kicked off in. A January bowl belongs to the prior season.
         tests: [not_null]
+      - name: season_type
+        description: "regular or postseason."
+      - name: neutral_site
+        description: Neither team at home — bowls and kickoff games.
+      - name: conference_game
+        description: Both teams in the same conference that season.
+      - name: home_conference
+        description: Conference as of that season, taken from the game record itself.
+      - name: is_fbs_game
+        description: At least one participant is FBS.
+      - name: home_points
+        description: Final home score. Null until the game is completed.
+      - name: away_points
+        description: Final away score. Null until the game is completed.
       - name: home_won
         description: Null until the game is completed.
+      - name: margin_home
+        description: home_points - away_points. Positive means the home team won.
+      - name: total_points
+        description: Combined score, comparable against the market total (over/under).
 
   - name: silver_teams
     description: >
@@ -21,6 +44,8 @@ models:
     columns:
       - name: team
         tests: [unique, not_null]
+      - name: is_fbs
+        description: Always true here; the model only contains FBS members.
       - name: is_notre_dame
         description: Drives the Notre Dame automatic-qualifier rule in the CFP logic.
 
@@ -35,46 +60,156 @@ models:
         tests: [not_null]
       - name: conference
         description: Canonical conference for that season, before any later realignment.
+      - name: is_fbs
+        description: FBS in this specific season, so a team's FCS years are absent rather than backdated.
 
   - name: silver_conferences
     description: Conference reference, one row per canonical conference.
     columns:
       - name: conference
+        description: Canonical conference name, the spelling every other model joins on.
         tests: [unique, not_null]
+      - name: conference_name
+        description: Conference name as CFBD publishes it, before canonicalisation.
+      - name: abbreviation
+        description: Short form, e.g. B1G or SEC.
 
   - name: silver_sp_plus
-    description: Season SP+ ratings. Higher sp_overall/sp_offense is better; lower sp_defense is better.
+    description: >
+      Season SP+ ratings — opponent-adjusted efficiency measured in points. For a completed
+      season these are computed from every game in it, so they describe history rather than
+      predicting it; models use the prior-season copies exposed by gold_team_week.
     columns:
       - name: season
         tests: [not_null]
       - name: team
         tests: [not_null]
+      - name: sp_overall
+        description: >
+          Net points per game against an average opponent. Higher is better; roughly -37 to +37.
+          Equals sp_offense - sp_defense + sp_special_teams.
+      - name: sp_offense
+        description: Adjusted points this offense would score per game. Higher is better; median ~28.5.
+      - name: sp_defense
+        description: Adjusted points this defense would allow per game. LOWER IS BETTER; median ~27.3.
+      - name: sp_special_teams
+        description: Points of special-teams value per game. Higher is better. Missing for 2020-2021.
+      - name: sp_rank
+        description: Rank by sp_overall, 1 = best.
+      - name: sp_sos
+        description: >
+          Schedule strength as a win probability, so HIGHER MEANS EASIER (G6 averages 0.93, Power 4
+          0.85). Only populated for 2015-2018.
+      - name: sp_second_order_wins
+        description: >
+          Wins a team's per-drive efficiency implies it should have had. The gap against actual
+          wins is the usual proxy for luck in close games.
 
   - name: silver_ppa_teams
-    description: Season PPA. Higher ppa_offense is better; lower ppa_defense is better.
+    description: >
+      Season Predicted Points Added, averaged per play. Play-level counterpart to SP+, on a
+      points-per-play scale, and without SP+'s opponent adjustment.
     columns:
       - name: season
         tests: [not_null]
       - name: team
         tests: [not_null]
+      - name: ppa_offense
+        description: Expected points added per offensive play. Higher is better; median ~0.18.
+      - name: ppa_defense
+        description: Expected points added allowed per play. LOWER IS BETTER; median ~0.16.
+      - name: ppa_offense_passing
+        description: Offensive PPA per play on passes.
+      - name: ppa_offense_rushing
+        description: Offensive PPA per play on runs.
+      - name: ppa_defense_passing
+        description: PPA allowed per play against the pass. Lower is better.
+      - name: ppa_defense_rushing
+        description: PPA allowed per play against the run. Lower is better.
+      - name: conference_raw
+        description: Conference exactly as CFBD sent it; join on the canonical `conference` instead.
 
   - name: silver_ppa_games
-    description: Per-game PPA, one row per team per game.
+    description: >
+      Per-game PPA, one row per team per game — the single-game version of silver_ppa_teams.
+      Useful for asking how a team performed in one specific matchup.
+    columns:
+      - name: opponent
+        description: Who the team played in this game.
+      - name: ppa_offense
+        description: Expected points added per offensive play in this game. Higher is better.
+      - name: ppa_defense
+        description: Expected points added allowed per play in this game. LOWER IS BETTER.
+      - name: conference_raw
+        description: Conference exactly as CFBD sent it; join on the canonical `conference` instead.
 
   - name: silver_lines_all
     description: Every sportsbook line for a game, one row per provider.
+    columns:
+      - name: spread
+        description: >
+          Closing spread from the HOME team's perspective. Negative means the home team is
+          favoured, so -7 is the home team by a touchdown.
+      - name: spread_open
+        description: The spread when the game first opened, before any line movement.
+      - name: over_under
+        description: Predicted combined score.
+      - name: over_under_open
+        description: The total when the game opened, before line movement.
+      - name: formatted_spread
+        description: Human-readable spread as the book states it, e.g. "Alabama -7.0".
+      - name: home_moneyline
+        description: Price on a straight home win, in American odds.
+      - name: away_moneyline
+        description: Price on a straight away win, in American odds.
 
   - name: silver_lines
     description: One preferred line per game (consensus first, then major books).
     columns:
       - name: game_id
         tests: [unique, not_null]
+      - name: provider
+        description: Which book this game's surviving line came from.
+      - name: spread
+        description: Closing spread from the home team's perspective; negative means home favoured.
+      - name: spread_open
+        description: The spread when the game opened, before line movement.
+      - name: over_under
+        description: Predicted combined score.
+      - name: over_under_open
+        description: The total when the game opened.
+      - name: formatted_spread
+        description: Human-readable spread as the book states it, e.g. "Alabama -7.0".
 
   - name: silver_rankings
-    description: Poll rankings flattened from polls -> ranks.
+    description: >
+      Poll rankings flattened from polls to ranks. Grain is season, week, poll, team — filter to
+      one poll before aggregating or teams will be counted several times.
+    columns:
+      - name: poll
+        description: AP Top 25, Coaches Poll, or CFP rankings.
+      - name: rank
+        description: Position in that poll, 1 = best.
+      - name: points
+        description: Voting points received.
+      - name: first_place_votes
+        description: Number of first-place votes received.
+      - name: conference_raw
+        description: Conference exactly as CFBD sent it; join on the canonical `conference` instead.
 
   - name: silver_talent
     description: Composite talent per team-season.
+    columns:
+      - name: talent
+        description: >
+          247Sports composite talent of players on the roster, so it accumulates several
+          recruiting classes. Higher is better; median ~574. A 0 for Air Force, Army or Navy from
+          2022 is a real value meaning almost no composite-rated recruits, not a missing one.
 
   - name: silver_recruiting_teams
     description: Recruiting class rank and points per team-season.
+    columns:
+      - name: recruiting_points
+        description: Composite score of one incoming signing class. Higher is better; median ~171.
+      - name: recruiting_rank
+        description: Rank of that signing class, 1 = best.

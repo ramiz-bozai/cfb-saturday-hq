@@ -25,6 +25,12 @@ models:
   cfb_saturday_hq:
     +materialized: table
     +file_format: delta
+    # Push model and column descriptions into Unity Catalog as comments, so the definitions in
+    # the schema files reach Genie and the Catalog Explorer instead of living only in dbt docs.
+    # docs/DATA_DICTIONARY.md carries the long-form version.
+    +persist_docs:
+      relation: true
+      columns: true
     bronze:
       +schema: cfb_bronze
       +tags: ["bronze"]
