@@ -182,9 +182,10 @@ Note that `landing_root` is **not** parameterized by environment. It points into
 `cfb_saturday_hq_raw` for both targets, which is what makes dev and prod read byte-identical
 inputs.
 
-`include_incremental` is the only var you ever pass on the command line, and only once. Set it to
-`false` for the very first build, because at that point no `incremental/` folder exists yet and
-`read_files()` errors on a glob matching zero files. After the first weekly refresh, leave it alone.
+`include_incremental` is the only var you pass on the command line during bootstrap. Set it to
+`false` for every build before notebook 04 writes the first valid incremental drop, because
+`read_files()` cannot resolve projected columns from a glob with no matching records. After the
+first weekly refresh has populated `incremental/`, leave it alone.
 
 The single dbt **source** in the project is `cfb_gold.game_predictions` — a table dbt reads but
 does not own.
@@ -268,7 +269,7 @@ your warehouse → *Connection details*.
 ### Commands worth knowing
 
 ```bash
-dbt build --vars '{include_incremental: false}'   # first build in an environment
+dbt build --vars '{include_incremental: false}'   # before the first incremental drop exists
 dbt build                                          # every run after that (dev)
 dbt build --target prod                            # what the jobs run
 dbt build --select silver_games+                   # a model and everything downstream of it
@@ -302,9 +303,9 @@ Two leaks worth knowing about, because both are easy to reintroduce:
   in question, so features use the `_prior` columns (last season's ratings). The unsuffixed
   ones are for reporting only.
 
-Each environment needs the `include_incremental: false` treatment for *its* first build only —
-that flag is about whether any `incremental/` folder exists yet, which is a property of the
-shared volume, so once the first weekly refresh has run neither environment needs it again.
+The flag follows the shared raw Volume, not the target environment. Before the first weekly
+refresh, use `include_incremental: false` for both dev and prod builds. Once a valid incremental
+drop exists, neither environment needs the override again.
 
 ---
 
