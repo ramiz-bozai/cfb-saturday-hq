@@ -17,10 +17,11 @@
     against non-FBS opponents; the unsuffixed ones are the literal record, kept for
     reporting. See gold_team_week for why.
 
-    The as-of join takes the newest team_week row STRICTLY BEFORE the game's week. The
-    cutoff has to be exclusive: a team_week row for week W is cumulative through week W,
-    so joining on week <= W hands the model the result of the very game it is predicting.
-    Week-1 games therefore have null form, which the training pipeline imputes.
+    The as-of join takes the newest team_week row STRICTLY BEFORE the game's start time. The
+    cutoff has to be exclusive: a team_week row is cumulative through that game, so joining
+    at or after the same timestamp hands the model the result it is predicting. Timestamp
+    chronology also keeps postseason Week 1 after regular Week 15 rather than colliding with
+    regular Week 1.
 */
 
 with games as (
@@ -34,7 +35,9 @@ home_form as (
 
     select
         g.game_id,
+        tw.season_type as home_feature_season_type,
         tw.week as home_feature_week,
+        tw.start_date as home_feature_start_date,
         tw.sp_overall as home_sp_overall,
         tw.sp_offense as home_sp_offense,
         tw.sp_defense as home_sp_defense,
@@ -57,10 +60,10 @@ home_form as (
     left join {{ ref('gold_team_week') }} as tw
         on tw.season = g.season
        and tw.team = g.home_team
-       and tw.week < g.week
+       and tw.start_date < g.start_date
     qualify row_number() over (
         partition by g.game_id
-        order by tw.week desc nulls last
+        order by tw.start_date desc nulls last, tw.game_id desc nulls last
     ) = 1
 
 ),
@@ -69,7 +72,9 @@ away_form as (
 
     select
         g.game_id,
+        tw.season_type as away_feature_season_type,
         tw.week as away_feature_week,
+        tw.start_date as away_feature_start_date,
         tw.sp_overall as away_sp_overall,
         tw.sp_offense as away_sp_offense,
         tw.sp_defense as away_sp_defense,
@@ -92,10 +97,10 @@ away_form as (
     left join {{ ref('gold_team_week') }} as tw
         on tw.season = g.season
        and tw.team = g.away_team
-       and tw.week < g.week
+       and tw.start_date < g.start_date
     qualify row_number() over (
         partition by g.game_id
-        order by tw.week desc nulls last
+        order by tw.start_date desc nulls last, tw.game_id desc nulls last
     ) = 1
 
 ),

@@ -23,7 +23,8 @@ REPO_PATH = ""
 ENV = ""  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 MODEL_NAME = ""  # blank => <catalog>.cfb_ml.matchup for this environment
-WEEK = None  # None => latest week for briefs
+SEASON_TYPES = ("regular", "postseason")  # kept separate because their week numbers overlap
+WEEK = None  # None => refresh every week in SEASON_TYPES; int => targeted repair
 N_SIMS = 2000
 
 repo_root = Path(REPO_PATH.strip()) if REPO_PATH.strip() else Path.cwd().parent
@@ -50,7 +51,13 @@ build_preseason_ratings(config, season=config.current_season)
 simulate_season(
     config, season=config.current_season, n_sims=N_SIMS, use_model_probs=True
 )
-generate_weekly_briefs(config, season=config.current_season, week=WEEK)
+for season_type in SEASON_TYPES:
+    generate_weekly_briefs(
+        config,
+        season=config.current_season,
+        week=WEEK,
+        season_type=season_type,
+    )
 
 print("weekly refresh complete for season", config.current_season)
 

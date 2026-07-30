@@ -9,14 +9,20 @@ models:
     description: >
       Team-season-week form (record, point differential, last-3 margin) joined to season
       SP+/PPA/talent/recruiting. This is the as-of feature source for game_features. Cumulative
-      columns include the current week's game, so consumers must join on week < game week.
+      columns include the row's source game, so consumers must join on start_date < game start_date.
     columns:
       - name: season
+        tests: [not_null]
+      - name: season_type
+        description: regular or postseason; part of the grain because their week numbers overlap.
         tests: [not_null]
       - name: team
         tests: [not_null]
       - name: week
-        description: Week within the season. Record columns are cumulative through this week, inclusive.
+        description: Week within season_type. Record columns are cumulative through this row's game.
+      - name: start_date
+        description: Source game's start timestamp and the chronology key for all running form.
+        tests: [not_null]
       - name: conference
         description: >
           Conference as of THIS season, before any later realignment — a 2016 Oregon row reads
@@ -111,16 +117,20 @@ models:
     description: >
       One row per FBS-vs-FBS game with both sides' as-of features, market line fields,
       and labels. Market columns are for display only and are excluded from FEATURE_COLS.
-      Form is drawn strictly from weeks before the game.
+      Form is drawn strictly from games whose start timestamp precedes the predicted game.
     columns:
       - name: game_id
         tests: [unique, not_null]
       - name: home_feature_week
         description: >
-          Which team_week row supplied the home side's form. Always strictly less than week,
-          because a team_week row includes its own week's result.
+          Week label of the team_week row supplying home form. Compare timestamps, not this field,
+          for chronology because postseason week numbers restart.
       - name: away_feature_week
-        description: Same for the away side. Always strictly less than week.
+        description: Week label of the team_week row supplying away form.
+      - name: home_feature_start_date
+        description: Source timestamp for home form; always strictly before the game's start_date.
+      - name: away_feature_start_date
+        description: Source timestamp for away form; always strictly before the game's start_date.
       - name: margin_home
         description: home_points - away_points. Positive means the home team won.
       - name: total_points

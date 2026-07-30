@@ -269,6 +269,16 @@ see the game differently, and on holdout data the market is the more accurate of
 5% `ppa_defense` (inverted), and 5% `talent`. Because the inputs are standardized, `rating` is in
 standard deviations, not points — unlike SP+.
 
+### `weekly_brief`
+
+One row per `game_id + team`: every game produces a home-team perspective and an away-team
+perspective. The away row flips the home probability, spread, and model-market difference, so all
+values read naturally from `team`'s point of view. `season_type` is part of every row because
+regular and postseason schedules both use week numbers starting at 1.
+
+`WEEK = None` refreshes all weeks in the requested season/type. Writes replace only that scope and
+preserve every other historical season/type already stored.
+
 ---
 
 ## Identity and outcome columns
@@ -286,7 +296,8 @@ standard deviations, not points — unlike SP+.
 | `total_points` | Combined score, comparable against `market_ou` |
 | `home_won` | Null until the game is completed |
 | `is_fbs_game` | At least one FBS participant (`silver_games`) |
-| `home_feature_week` / `away_feature_week` | Which `team_week` row supplied that side's form — always strictly before the game's week |
+| `home_feature_week` / `away_feature_week` | Week label on the `team_week` row supplying form. Do not compare these across regular/postseason |
+| `home_feature_start_date` / `away_feature_start_date` | Actual as-of cutoff for form — always strictly before the predicted game's `start_date` |
 | `is_fbs` | FBS that season (`silver_team_seasons`) or currently (`silver_teams`) |
 | `is_notre_dame` | Flags the one team with a playoff rule of its own; see `docs/CFP_RULES.md` |
 | `_source_path`, `_ingest_mode` | Lineage: which landed file a row came from, and whether via backfill or incremental refresh |
