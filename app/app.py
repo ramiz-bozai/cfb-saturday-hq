@@ -11,6 +11,8 @@ from typing import List
 
 import pandas as pd
 import streamlit as st
+from databricks import sql
+from databricks.sdk.core import Config
 
 # Mirrors current_cfb_season() in src/saturday_hq/config.py; the app ships without the package.
 SEASON_START_MONTH = 8
@@ -35,21 +37,31 @@ GOLD_SCHEMA = os.getenv("SATURDAY_HQ_GOLD_SCHEMA", "cfb_gold")
 APP_SCHEMA = os.getenv("SATURDAY_HQ_APP_SCHEMA", "cfb_app")
 
 
-def get_spark():
-    try:
-        from databricks.connect import DatabricksSession
-
-        return DatabricksSession.builder.getOrCreate()
-    except Exception:
-        from pyspark.sql import SparkSession
-
-        return SparkSession.builder.getOrCreate()
+def get_connection():
+    config = Config()
+    warehouse_id = os.getenv("DATABRICKS_WAREHOUSE_ID")
+    http_path = os.getenv("DATABRICKS_HTTP_PATH")
+    if not http_path:
+        if not warehouse_id:
+            raise RuntimeError(
+                "Set DATABRICKS_WAREHOUSE_ID through an App SQL warehouse resource."
+            )
+        http_path = f"/sql/1.0/warehouses/{warehouse_id}"
+    server_hostname = config.host.removeprefix("https://").removeprefix("http://").rstrip("/")
+    return sql.connect(
+        server_hostname=server_hostname,
+        http_path=http_path,
+        credentials_provider=lambda: config.authenticate,
+        _use_arrow_native_complex_types=True,
+    )
 
 
 @st.cache_data(ttl=300)
-def load_table(sql: str) -> pd.DataFrame:
-    spark = get_spark()
-    return spark.sql(sql).toPandas()
+def load_table(query: str) -> pd.DataFrame:
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            return cursor.fetchall_arrow().to_pandas()
 
 
 def main():

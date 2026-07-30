@@ -1,18 +1,13 @@
-"""
-Databricks App config for Saturday HQ.
-"""
-
-name: saturday-hq
-description: FBS Saturday HQ — SP+/PPA, model vs market, playoff projections
-
-command: [
-  "streamlit", "run", "app.py"
-]
+command: ["streamlit", "run", "app.py"]
 
 env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
   - name: SATURDAY_HQ_CATALOG
     value: cfb_saturday_hq_prod
   - name: SATURDAY_HQ_GOLD_SCHEMA
     value: cfb_gold
   - name: SATURDAY_HQ_APP_SCHEMA
     value: cfb_app
+  - name: STREAMLIT_GATHER_USAGE_STATS
+    value: "false"

@@ -26,6 +26,7 @@ MODEL_NAME = ""  # blank => <catalog>.cfb_ml.matchup for this environment
 SEASON_TYPES = ("regular", "postseason")  # kept separate because their week numbers overlap
 WEEK = None  # None => refresh every week in SEASON_TYPES; int => targeted repair
 N_SIMS = 2000
+RANDOM_SEED = 42  # fixed so identical inputs produce identical projections
 
 repo_root = Path(REPO_PATH.strip()) if REPO_PATH.strip() else Path.cwd().parent
 sys.path.insert(0, str(repo_root / "src"))
@@ -49,7 +50,11 @@ score_games(
 )
 build_preseason_ratings(config, season=config.current_season)
 simulate_season(
-    config, season=config.current_season, n_sims=N_SIMS, use_model_probs=True
+    config,
+    season=config.current_season,
+    n_sims=N_SIMS,
+    use_model_probs=True,
+    random_seed=RANDOM_SEED,
 )
 for season_type in SEASON_TYPES:
     generate_weekly_briefs(
