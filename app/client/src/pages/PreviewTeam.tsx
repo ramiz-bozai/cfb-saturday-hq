@@ -3,9 +3,14 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import {
   bandFromScore,
+  continuityVerdict,
+  dependencyBand,
+  dependencyVerdict,
   fmtInt,
   fmtNum,
   fmtPct,
+  netProductionVerdict,
+  netTalentVerdict,
   qbTone,
   riskTone,
   unitLabel,
@@ -25,6 +30,9 @@ type TeamData = {
   moves: any[];
   qbs: any[];
 };
+
+/** Fixed board: offense row, then defense + ST. */
+const UNIT_LAYOUT = ["QB", "RB", "WR/TE", "OL", "DL", "LB", "DB", "ST"] as const;
 
 export default function PreviewTeam() {
   const [params, setParams] = useSearchParams();
@@ -70,6 +78,11 @@ export default function PreviewTeam() {
     () => (data?.moves || []).filter((m) => m.origin === data?.team && m.destination !== data?.team),
     [data]
   );
+  const unitByGroup = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const u of data?.units || []) map.set(u.position_group, u);
+    return map;
+  }, [data]);
 
   const ret = data?.returning;
   const dep = data?.dependency;
@@ -136,20 +149,64 @@ export default function PreviewTeam() {
             <div className="split">
               <div className="card">
                 <h3 style={{ marginTop: 0 }}>Transfer dependency</h3>
+                <p className="lede" style={{ marginTop: 0 }}>
+                  Same score overall, then split by side. Defense usage is share of team
+                  tackle-weighted production (not CFBD snaps).
+                </p>
                 <div className="metric-row">
                   <Metric
-                    label="Score"
+                    label="Overall"
+                    verdict={dependencyVerdict(dep?.transfer_dependency_score)}
                     value={`${fmtInt(dep?.transfer_dependency_score)} / 100`}
-                    band={
-                      Number(dep?.transfer_dependency_score) >= 70
-                        ? "low"
-                        : Number(dep?.transfer_dependency_score) >= 40
-                          ? "mid"
-                          : "high"
-                    }
+                    band={dependencyBand(dep?.transfer_dependency_score)}
+                    hint="How much of last year’s usage now rides on portal arrivals."
                   />
-                  <Metric label="Usage from transfers" value={fmtPct(dep?.pct_usage_from_transfers)} />
-                  <Metric label="Critical units" value={fmtInt(dep?.critical_units_on_transfers)} />
+                  <Metric
+                    label="Usage from transfers"
+                    value={fmtPct(dep?.pct_usage_from_transfers)}
+                  />
+                  <Metric
+                    label="Critical units"
+                    value={fmtInt(dep?.critical_units_on_transfers)}
+                  />
+                </div>
+                <p className="lede" style={{ marginBottom: "0.35rem", marginTop: "1rem" }}>
+                  Offense (QB, RB, WR/TE, OL)
+                </p>
+                <div className="metric-row">
+                  <Metric
+                    label="Dependency"
+                    verdict={dependencyVerdict(dep?.offense_transfer_dependency_score)}
+                    value={`${fmtInt(dep?.offense_transfer_dependency_score)} / 100`}
+                    band={dependencyBand(dep?.offense_transfer_dependency_score)}
+                  />
+                  <Metric
+                    label="Usage from transfers"
+                    value={fmtPct(dep?.offense_pct_usage_from_transfers)}
+                  />
+                  <Metric
+                    label="Critical units"
+                    value={fmtInt(dep?.offense_critical_units_on_transfers)}
+                  />
+                </div>
+                <p className="lede" style={{ marginBottom: "0.35rem", marginTop: "1rem" }}>
+                  Defense (DL, LB, Secondary)
+                </p>
+                <div className="metric-row">
+                  <Metric
+                    label="Dependency"
+                    verdict={dependencyVerdict(dep?.defense_transfer_dependency_score)}
+                    value={`${fmtInt(dep?.defense_transfer_dependency_score)} / 100`}
+                    band={dependencyBand(dep?.defense_transfer_dependency_score)}
+                  />
+                  <Metric
+                    label="Usage from transfers"
+                    value={fmtPct(dep?.defense_pct_usage_from_transfers)}
+                  />
+                  <Metric
+                    label="Critical units"
+                    value={fmtInt(dep?.defense_critical_units_on_transfers)}
+                  />
                 </div>
               </div>
               <div className="card">
@@ -173,11 +230,24 @@ export default function PreviewTeam() {
                   </div>
                 </div>
                 <div className="metric-row" style={{ marginTop: "0.85rem" }}>
-                  <Metric label="Net production" value={fmtNum(led?.net_production_gained)} />
-                  <Metric label="Net talent" value={fmtNum(led?.net_talent_gained, 2)} />
+                  <Metric
+                    label="Net production"
+                    verdict={netProductionVerdict(led?.net_production_gained).verdict}
+                    value={fmtNum(led?.net_production_gained)}
+                    band={netProductionVerdict(led?.net_production_gained).band}
+                    hint="Prior production gained minus lost through the portal."
+                  />
+                  <Metric
+                    label="Net talent"
+                    verdict={netTalentVerdict(led?.net_talent_gained).verdict}
+                    value={fmtNum(led?.net_talent_gained, 2)}
+                    band={netTalentVerdict(led?.net_talent_gained).band}
+                    hint="Avg recruiting quality of arrivals minus departures."
+                  />
                   <Metric
                     label="Projected starters"
                     value={`+${fmtInt(led?.projected_starters_added)} / −${fmtInt(led?.projected_starters_lost)}`}
+                    hint="High-usage players added vs departed."
                   />
                 </div>
               </div>
@@ -186,29 +256,52 @@ export default function PreviewTeam() {
 
           <section className="section">
             <h2>Unit continuity grades</h2>
-            <p className="lede">Worst continuity first — production, talent, and replacement risk by unit.</p>
-            <div className="card-grid">
-              {data.units.map((u) => (
-                <div key={u.position_group} className="card">
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "center" }}>
-                    <h3 style={{ margin: 0 }}>{unitLabel(u.position_group)}</h3>
-                    <Pill tone={riskTone(u.replacement_risk)}>{u.replacement_risk}</Pill>
+            <p className="lede">
+              Continuity (0–100) is how much prior production and usage is still on the roster at
+              that unit. Offense: CFBD PPA/usage. Defense (DL/LB/DB): tackle-weighted production
+              and share of team defense production. OL/ST: roster retention when no usage exists.
+            </p>
+            <div className="unit-grid">
+              {UNIT_LAYOUT.map((pg) => {
+                const u = unitByGroup.get(pg);
+                if (!u) {
+                  return (
+                    <div key={pg} className="card unit-empty">
+                      <span className="meta">{unitLabel(pg)} · no data</span>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={pg} className="card">
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "center" }}>
+                      <h3 style={{ margin: 0 }}>{unitLabel(pg)}</h3>
+                      <Pill tone={riskTone(u.replacement_risk)}>{u.replacement_risk}</Pill>
+                    </div>
+                    <div className="metric-row">
+                      <Metric
+                        label="Continuity"
+                        verdict={continuityVerdict(u.continuity_score, true)}
+                        value={`${fmtInt(u.continuity_score)} / 100`}
+                        band={bandFromScore(Number(u.continuity_score), true)}
+                      />
+                      <Metric
+                        label="Production returning"
+                        value={fmtPct(u.production_returning_pct)}
+                        band={bandFromScore(u.production_returning_pct)}
+                      />
+                      <Metric
+                        label="Usage returning"
+                        value={fmtPct(u.usage_returning_pct)}
+                        band={bandFromScore(u.usage_returning_pct)}
+                      />
+                    </div>
+                    <p className="meta" style={{ marginTop: "0.65rem" }}>
+                      Impact +{fmtInt(u.impact_additions)} / −{fmtInt(u.impact_losses)} · Net talent{" "}
+                      {fmtNum(u.net_talent_gained, 2)}
+                    </p>
                   </div>
-                  <div className="metric-row">
-                    <Metric
-                      label="Continuity"
-                      value={fmtInt(u.continuity_score)}
-                      band={bandFromScore(Number(u.continuity_score), true)}
-                    />
-                    <Metric label="Production returning" value={fmtPct(u.production_returning_pct)} band={bandFromScore(u.production_returning_pct)} />
-                    <Metric label="Usage returning" value={fmtPct(u.usage_returning_pct)} band={bandFromScore(u.usage_returning_pct)} />
-                  </div>
-                  <p className="meta" style={{ marginTop: "0.65rem" }}>
-                    Impact +{fmtInt(u.impact_additions)} / −{fmtInt(u.impact_losses)} · Net talent{" "}
-                    {fmtNum(u.net_talent_gained, 2)}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 
@@ -229,6 +322,29 @@ export default function PreviewTeam() {
 
           <section className="section">
             <h2>Portal moves</h2>
+            <div className="explainer">
+              <p>How to read prior production and usage on each move.</p>
+              <dl>
+                <div>
+                  <dt>Production</dt>
+                  <dd>
+                    Offense: total PPA, or usage × 50. Defense (DL/LB/DB): tackles + 2×TFL + 3×sacks
+                    + 2×INT.
+                  </dd>
+                </div>
+                <div>
+                  <dt>Usage</dt>
+                  <dd>
+                    Offense: CFBD play share. Defense: share of that team’s defensive production
+                    (not snap %).
+                  </dd>
+                </div>
+                <div>
+                  <dt>Scale</dt>
+                  <dd>~0 little role · ~10–40 solid · ~15+ often impact · 100+ star season</dd>
+                </div>
+              </dl>
+            </div>
             <div className="split">
               <MoveList title="Arrivals" rows={arrivals} kind="in" />
               <MoveList title="Departures" rows={departures} kind="out" />

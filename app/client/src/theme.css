@@ -188,10 +188,90 @@ input {
   line-height: 1.5;
 }
 
+.explainer {
+  margin: 0 0 1.1rem;
+  max-width: 42rem;
+  font-family: var(--font-body);
+  color: var(--muted);
+}
+
+.explainer > p {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.explainer dl {
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.explainer dl > div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: 0.65rem 1rem;
+  align-items: baseline;
+}
+
+.explainer dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pitch);
+}
+
+.explainer dd {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 560px) {
+  .explainer dl > div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+}
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 0.85rem;
+}
+
+.unit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.unit-grid .card.unit-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 8.5rem;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.unit-grid .card.unit-empty:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+@media (max-width: 960px) {
+  .unit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .unit-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .card {
@@ -244,12 +324,42 @@ input {
   color: var(--muted);
 }
 
+.metric .verdict {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+}
+
+.metric .verdict.low {
+  color: var(--danger);
+}
+.metric .verdict.mid {
+  color: var(--amber);
+}
+.metric .verdict.high {
+  color: var(--ok);
+}
+
 .metric .value {
   font-family: var(--font-display);
   font-size: 1.7rem;
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.05;
+}
+
+.metric:has(.verdict) .value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.metric:has(.verdict) .value.low,
+.metric:has(.verdict) .value.mid,
+.metric:has(.verdict) .value.high {
+  color: var(--muted);
 }
 
 .metric .value.low {
@@ -260,6 +370,14 @@ input {
 }
 .metric .value.high {
   color: var(--ok);
+}
+
+.metric .hint {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--muted);
+  max-width: 14rem;
 }
 
 .pill {

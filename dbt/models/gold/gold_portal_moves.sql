@@ -74,7 +74,8 @@ select
         then 'impact'
         else 'depth'
     end as impact_class,
-    coalesce(ps.usage_overall, 0.0) >= 0.25 as projected_starter
+    coalesce(ps.usage_overall, 0.0) >= 0.25
+        or coalesce(ps.production_score, 0.0) >= 40.0 as projected_starter
 from portal as p
 left join origin_roster as o
     on o.portal_season = p.season

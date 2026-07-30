@@ -55,10 +55,7 @@ prior_team_totals as (
         sum(coalesce(kick_points, 0.0)) as kick_points,
         sum(coalesce(pass_yds, 0.0) + coalesce(rush_yds, 0.0) + coalesce(rec_yds, 0.0)) as offense_yards,
         sum(
-            coalesce(tackles, 0.0)
-            + 2.0 * coalesce(tfl, 0.0)
-            + 3.0 * coalesce(sacks, 0.0)
-            + 2.0 * coalesce(interceptions, 0.0)
+            {{ defense_production_score('tackles', 'tfl', 'sacks', 'interceptions') }}
         ) as defense_weighted
     from {{ ref('gold_player_season') }}
     group by season, team
@@ -115,10 +112,12 @@ computed as (
             ret.returning_pass_yds + ret.returning_rush_yds + ret.returning_rec_yds
         ) / nullif(pt.offense_yards, 0) as percent_offense_returning,
         (
-            ret.returning_tackles
-            + 2.0 * ret.returning_tfl
-            + 3.0 * ret.returning_sacks
-            + 2.0 * ret.returning_interceptions
+            {{ defense_production_score(
+                'ret.returning_tackles',
+                'ret.returning_tfl',
+                'ret.returning_sacks',
+                'ret.returning_interceptions'
+            ) }}
         ) / nullif(pt.defense_weighted, 0) as percent_defense_returning,
         ret.returning_production,
         ret.returning_usage,

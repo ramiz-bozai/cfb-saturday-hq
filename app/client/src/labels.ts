@@ -1,7 +1,7 @@
 export function unitLabel(group: string | null | undefined): string {
   if (!group) return "—";
   if (group === "DB") return "Secondary";
-  if (group === "ST") return "Special teams";
+  if (group === "ST") return "Special Teams";
   return group;
 }
 
@@ -34,6 +34,57 @@ export function bandFromScore(value: unknown, asPercent = false): Band {
   if (n >= 70) return "high";
   if (n >= 40) return "mid";
   return "low";
+}
+
+/** Fan-facing verdict for continuity / returning scores (higher = better). */
+export function continuityVerdict(value: unknown, asPercent = false): string {
+  const band = bandFromScore(value, asPercent);
+  if (band === "high") return "Strong";
+  if (band === "mid") return "Mixed";
+  return "Thin";
+}
+
+/**
+ * Transfer dependency is inverted: high score = more risk.
+ * Returns band for coloring (low=danger) plus a verdict word.
+ */
+export function dependencyBand(value: unknown): Band {
+  const n = Number(value);
+  if (value == null || Number.isNaN(n)) return "mid";
+  if (n >= 70) return "low";
+  if (n >= 40) return "mid";
+  return "high";
+}
+
+export function dependencyVerdict(value: unknown): string {
+  const n = Number(value);
+  if (value == null || Number.isNaN(n)) return "—";
+  if (n >= 70) return "Heavy";
+  if (n >= 40) return "Moderate";
+  return "Light";
+}
+
+/** Signed production delta (prior production score units). */
+export function netProductionVerdict(value: unknown): { band: Band; verdict: string } {
+  const n = Number(value);
+  if (value == null || Number.isNaN(n)) return { band: "mid", verdict: "Even" };
+  if (n > 5) return { band: "high", verdict: "Gained" };
+  if (n < -5) return { band: "low", verdict: "Lost" };
+  return { band: "mid", verdict: "Even" };
+}
+
+/** Average talent delta on ~0–1 recruiting scale. */
+export function netTalentVerdict(value: unknown): { band: Band; verdict: string } {
+  const n = Number(value);
+  if (value == null || Number.isNaN(n)) return { band: "mid", verdict: "Even" };
+  if (n > 0.02) return { band: "high", verdict: "Gained" };
+  if (n < -0.02) return { band: "low", verdict: "Lost" };
+  return { band: "mid", verdict: "Even" };
+}
+
+/** @deprecated Prefer netProductionVerdict / netTalentVerdict. */
+export function netVerdict(value: unknown): { band: Band; verdict: string } {
+  return netProductionVerdict(value);
 }
 
 export function riskTone(risk: string | null | undefined): string {

@@ -18,7 +18,7 @@ cfb_saturday_hq:
       catalog: "cfb_saturday_hq_dev"
       schema: "dbt_rbozai"
       token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
-      threads: 16
+      threads: 32
 
     prod:
       type: databricks
@@ -27,4 +27,4 @@ cfb_saturday_hq:
       catalog: "cfb_saturday_hq_prod"
       schema: "default"
       token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
-      threads: 16
+      threads: 32
