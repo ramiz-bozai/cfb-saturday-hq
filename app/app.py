@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 import streamlit as st
@@ -64,6 +64,224 @@ def load_table(query: str) -> pd.DataFrame:
             return cursor.fetchall_arrow().to_pandas()
 
 
+def _number(value) -> Optional[float]:
+    return None if value is None or pd.isna(value) else float(value)
+
+
+def _flag(value) -> bool:
+    return False if value is None or pd.isna(value) else bool(value)
+
+
+def _percent(value: Optional[float]) -> str:
+    return "Not available" if value is None else f"{value:.0%}"
+
+
+def _difference(left, right) -> Optional[float]:
+    left_number = _number(left)
+    right_number = _number(right)
+    if left_number is None or right_number is None:
+        return None
+    return left_number - right_number
+
+
+def _record(row: pd.Series, side: str) -> str:
+    games = _number(row.get(f"{side}_games_played"))
+    win_pct = _number(row.get(f"{side}_win_pct"))
+    if games is None or win_pct is None:
+        return "0-0" if int(row.get("week", 0)) <= 1 else "Record unavailable"
+    wins = round(games * win_pct)
+    return f"{wins}-{round(games) - wins}"
+
+
+def _kickoff_label(value) -> str:
+    kickoff = pd.to_datetime(value, utc=True, errors="coerce")
+    if pd.isna(kickoff):
+        return "Kickoff time unavailable"
+    return kickoff.strftime("%a, %b %d · %I:%M %p UTC").replace(" 0", " ")
+
+
+def _spread_label(row: pd.Series) -> str:
+    spread = _number(row.get("market_spread"))
+    if spread is None:
+        return "Not posted"
+    if spread == 0:
+        return "Pick'em"
+    return f"-{abs(spread):g}"
+
+
+def _interest_score(row: pd.Series) -> float:
+    model_probability = _number(row.get("model_home_win_prob"))
+    disagreement = abs(_number(row.get("model_minus_market")) or 0.0)
+    toss_up = 0.0 if model_probability is None else 1.0 - 2.0 * abs(model_probability - 0.5)
+    return toss_up + 1.5 * disagreement
+
+
+def _matchup_insights(row: pd.Series) -> List[str]:
+    home = str(row["home_team"])
+    away = str(row["away_team"])
+    insights: List[str] = []
+    available_comparisons = 0
+
+    comparisons = [
+        (
+            _number(row.get("sp_overall_diff_prior")),
+            3.0,
+            "the stronger prior-season SP+ profile",
+        ),
+        (
+            _number(row.get("talent_diff")),
+            40.0,
+            "the roster-talent advantage",
+        ),
+        (
+            _difference(row.get("home_win_pct_fbs"), row.get("away_win_pct_fbs")),
+            0.15,
+            "the better record against FBS opponents",
+        ),
+        (
+            _difference(
+                row.get("home_avg_margin_l3_fbs"), row.get("away_avg_margin_l3_fbs")
+            ),
+            7.0,
+            "the stronger recent FBS form",
+        ),
+    ]
+    for difference, threshold, description in comparisons:
+        if difference is None:
+            continue
+        available_comparisons += 1
+        if abs(difference) < threshold:
+            continue
+        team = home if difference > 0 else away
+        insights.append(f"{team} has {description}.")
+        if len(insights) == 2:
+            break
+
+    if available_comparisons == 0:
+        insights.append("Pregame team-strength context is not available for this matchup.")
+    elif not insights:
+        insights.append("The available team-strength indicators are closely matched.")
+    return insights
+
+
+def _game_tags(row: pd.Series, my_teams: List[str]) -> List[str]:
+    tags = []
+    home = str(row["home_team"])
+    away = str(row["away_team"])
+    model_probability = _number(row.get("model_home_win_prob"))
+    market_probability = _number(row.get("market_home_win_prob"))
+    disagreement = _number(row.get("model_minus_market"))
+
+    if home in my_teams or away in my_teams:
+        tags.append("⭐ My Team")
+    if (
+        _number(row.get("sp_overall_diff_prior")) is None
+        and _number(row.get("talent_diff")) is None
+    ):
+        tags.append("Limited model context")
+    if model_probability is not None and abs(model_probability - 0.5) <= 0.08:
+        tags.append("Toss-up")
+    if (
+        model_probability is not None
+        and market_probability is not None
+        and (model_probability >= 0.5) != (market_probability >= 0.5)
+    ):
+        tags.append("Upset watch")
+    elif disagreement is not None and abs(disagreement) >= 0.08:
+        tags.append("Big model-market disagreement")
+    return tags
+
+
+def render_game_card(row: pd.Series, my_teams: List[str]) -> None:
+    home = str(row["home_team"])
+    away = str(row["away_team"])
+    home_probability = _number(row.get("model_home_win_prob"))
+    market_home_probability = _number(row.get("market_home_win_prob"))
+    disagreement = _number(row.get("model_minus_market"))
+    tags = _game_tags(row, my_teams)
+    completed = _flag(row.get("completed"))
+    model_favorite = (
+        home
+        if home_probability is not None and home_probability >= 0.5
+        else away
+        if home_probability is not None
+        else None
+    )
+    market_favorite = (
+        home
+        if market_home_probability is not None and market_home_probability >= 0.5
+        else away
+        if market_home_probability is not None
+        else None
+    )
+
+    with st.container(border=True):
+        st.caption(" · ".join(tags) if tags else "Weekly matchup")
+        st.markdown(f"### {away} at {home}")
+        st.caption(
+            f"{away} {_record(row, 'away')}  ·  {home} {_record(row, 'home')}  ·  "
+            f"{'Final' if completed else _kickoff_label(row.get('start_date'))}"
+        )
+
+        if completed:
+            st.markdown(
+                f"**Final: {away} {int(row['away_points'])}, "
+                f"{home} {int(row['home_points'])}**"
+            )
+        elif home_probability is not None:
+            favorite = home if home_probability >= 0.5 else away
+            favorite_probability = max(home_probability, 1.0 - home_probability)
+            st.markdown(f"**Saturday HQ pick: {favorite} ({favorite_probability:.0%})**")
+        else:
+            st.markdown("**Saturday HQ prediction not available yet**")
+
+        model_column, market_column, spread_column = st.columns(3)
+        model_column.metric(
+            f"Model · {model_favorite}" if model_favorite else "Model",
+            _percent(
+                max(home_probability, 1.0 - home_probability)
+                if home_probability is not None
+                else None
+            ),
+            help="Win probability for the model's favored team.",
+        )
+        market_column.metric(
+            f"Market · {market_favorite}" if market_favorite else "Market",
+            _percent(
+                max(market_home_probability, 1.0 - market_home_probability)
+                if market_home_probability is not None
+                else None
+            ),
+            help="De-vigged moneyline probability for the market favorite.",
+        )
+        spread_column.metric(
+            f"Spread · {market_favorite}" if market_favorite else "Spread",
+            _spread_label(row),
+            help="The posted spread for the market favorite.",
+        )
+
+        if disagreement is not None and market_home_probability is not None:
+            side = home if disagreement > 0 else away
+            if abs(disagreement) < 0.03:
+                st.caption("Saturday HQ and the market broadly agree.")
+            else:
+                st.caption(
+                    f"Saturday HQ is {abs(disagreement):.0%} more optimistic about {side} "
+                    "than the market."
+                )
+
+        for insight in _matchup_insights(row):
+            st.write(f"• {insight}")
+
+
+def render_game_grid(games: pd.DataFrame, my_teams: List[str]) -> None:
+    for start in range(0, len(games), 2):
+        columns = st.columns(2)
+        for position, (_, game) in enumerate(games.iloc[start : start + 2].iterrows()):
+            with columns[position]:
+                render_game_card(game, my_teams)
+
+
 def main():
     st.set_page_config(page_title="Saturday HQ", page_icon="🏈", layout="wide")
     st.title("Saturday HQ")
@@ -107,26 +325,44 @@ def main():
         st.subheader(f"{season_type.title()} Week {week} slate — model vs market")
         slate = load_table(
             f"""
-            SELECT season_type, week, home_team, away_team,
-                   round(model_home_win_prob, 3) AS model_home_win_prob,
-                   round(market_home_win_prob_novig, 3) AS market_home_win_prob,
-                   round(model_minus_market_home, 3) AS model_minus_market,
+            SELECT game_id, season_type, week, start_date, completed, neutral_site,
+                   home_team, away_team, home_conference, away_conference,
+                   home_points, away_points,
+                   model_home_win_prob,
+                   market_home_win_prob_novig AS market_home_win_prob,
+                   model_minus_market_home AS model_minus_market,
                    market_spread,
-                   round(home_sp_overall, 1) AS home_sp,
-                   round(away_sp_overall, 1) AS away_sp
+                   home_games_played, away_games_played,
+                   home_win_pct, away_win_pct,
+                   home_win_pct_fbs, away_win_pct_fbs,
+                   home_avg_margin_l3_fbs, away_avg_margin_l3_fbs,
+                   sp_overall_diff_prior,
+                   talent_diff
             FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
             WHERE season = {int(season)}
               AND lower(season_type) = '{season_type}'
               AND week = {int(week)}
-            ORDER BY abs(coalesce(model_minus_market_home, 0)) DESC
+            ORDER BY start_date, game_id
             """
         )
-        if my_teams:
-            mask = slate["home_team"].isin(my_teams) | slate["away_team"].isin(my_teams)
-            st.write("My Teams games")
-            st.dataframe(slate[mask], use_container_width=True)
-        st.write("Full slate")
-        st.dataframe(slate, use_container_width=True)
+        if slate.empty:
+            st.info("No games are available for this week yet.")
+        else:
+            slate["_interest_score"] = slate.apply(_interest_score, axis=1)
+            my_team_mask = slate["home_team"].isin(my_teams) | slate["away_team"].isin(my_teams)
+            my_team_games = slate[my_team_mask].sort_values("_interest_score", ascending=False)
+            other_games = slate[~my_team_mask].sort_values("_interest_score", ascending=False)
+
+            st.caption(
+                "Cards prioritize close games and meaningful model-market disagreements. "
+                "Market percentages are de-vigged."
+            )
+            if not my_team_games.empty:
+                st.markdown("#### My Teams")
+                render_game_grid(my_team_games, my_teams)
+            if not other_games.empty:
+                st.markdown("#### Games to Watch")
+                render_game_grid(other_games, my_teams)
 
     with tab_matchup:
         st.subheader("Matchup card")
@@ -157,7 +393,7 @@ def main():
                   AND home_team = '{home}' AND away_team = '{away}'
                 """
             )
-            st.dataframe(card.T, use_container_width=True)
+            st.dataframe(card.T.astype(str), width="stretch")
 
     with tab_proj:
         st.subheader("Season / playoff projections")
@@ -173,7 +409,7 @@ def main():
             LIMIT 40
             """
         )
-        st.dataframe(proj, use_container_width=True)
+        st.dataframe(proj, width="stretch")
 
     with tab_brief:
         st.subheader("Weekly briefs")

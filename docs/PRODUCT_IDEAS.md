@@ -108,6 +108,12 @@ This phase should require little or no new modeling.
 
 ### Weekly game cards
 
+**Status: implemented.** The Slate now presents responsive cards prioritized by close-game and
+model-market-disagreement signals, with separate My Teams and Games to Watch sections. Each card
+shows records, kickoff or final status, the model pick, de-vigged market context, spread, fan-facing
+labels, and available matchup indicators. Logos, locations, and true per-prediction feature
+contributions remain future data/modeling work.
+
 Replace the raw Slate dataframe with cards that show:
 
 - Team names, logos, and records
