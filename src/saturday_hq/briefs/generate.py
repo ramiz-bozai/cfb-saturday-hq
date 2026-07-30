@@ -137,11 +137,10 @@ def generate_weekly_briefs(
     if week is not None:
         cards = cards.filter(F.col("week") == int(week))
 
-    out = _brief_rows(cards).cache()
+    out = _brief_rows(cards)
     card_count = cards.count()
     brief_count = out.count()
     if card_count == 0:
-        out.unpersist()
         requested_week = "all weeks" if week is None else f"week {int(week)}"
         if table_exists and "season_type" in existing_columns:
             spark.sql(f"DELETE FROM {table} WHERE {predicate}")
@@ -155,7 +154,6 @@ def generate_weekly_briefs(
         return table
     expected = card_count * 2
     if brief_count != expected:
-        out.unpersist()
         raise RuntimeError(f"Expected {expected} brief rows from {card_count} games, got {brief_count}")
 
     scope = f"season={season}, season_type={season_type}"
@@ -182,7 +180,6 @@ def generate_weekly_briefs(
         write_mode = f"replaced only {predicate}"
 
     document_table(spark, table, "weekly_brief")
-    out.unpersist()
     total_rows = spark.table(table).count()
     total_seasons = spark.table(table).select("season").distinct().count()
     print(
