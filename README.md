@@ -34,6 +34,19 @@ Weekly briefs are historical serving data, not a one-week scratch table. Each ro
 `game_id + team` perspective with explicit `season_type`; refreshing one season/type replaces only
 that scope and preserves every other season already stored.
 
+## Databricks feature map
+
+| Project area | Databricks feature | How it is used |
+|---|---|---|
+| Raw data | Unity Catalog Volumes | Stores one shared copy of historical and weekly CFBD files |
+| Dev and prod isolation | Unity Catalog catalogs and schemas | Separates each environment's bronze, silver, gold, ML, and app objects |
+| Data transformation | Delta Lake, `read_files()`, and dbt | Builds tested bronze, silver, and gold tables from the shared raw files |
+| Scheduling and deployment | Workflows Jobs and Asset Bundles | Deploys and runs ingestion, dbt, training, simulations, and serving |
+| Credentials | Secret scopes and `dbutils.secrets` | Provides the CFBD API key without committing it |
+| Machine learning | MLflow and Models in Unity Catalog | Tracks experiments, registers the matchup model, and loads it for scoring |
+| Analytics | SQL Warehouses and AI/BI Genie | Supports dbt, SQL exploration, model audits, and natural-language questions |
+| Application | Databricks Apps | Serves matchups, model-versus-market comparisons, projections, and briefs |
+
 ## Catalogs
 | Catalog | Holds | Written by |
 |---|---|---|
