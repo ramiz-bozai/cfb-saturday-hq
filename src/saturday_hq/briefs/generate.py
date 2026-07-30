@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Optional
 
 from pyspark.sql import SparkSession
@@ -16,22 +17,14 @@ def _spark() -> SparkSession:
     return SparkSession.builder.getOrCreate()
 
 
-def generate_weekly_briefs(
-    config: SaturdayHQConfig,
-    season: Optional[int] = None,
-    week: Optional[int] = None,
-) -> str:
-    spark = _spark()
-    season = season or config.current_season
-    cards = spark.table(config.gold("matchup_card")).filter(F.col("season") == season)
-    if week is None:
-        week = cards.agg(F.max("week")).collect()[0][0]
-    cards = cards.filter(F.col("week") == week)
-
-    # One brief per team appearing on the slate
+def _brief_rows(cards):
+    """Turn one matchup-card row into one brief per team perspective."""
     home = cards.select(
-        F.lit(season).alias("season"),
-        F.lit(int(week)).alias("week"),
+        "game_id",
+        "season",
+        "season_type",
+        "week",
+        "start_date",
         F.col("home_team").alias("team"),
         F.col("away_team").alias("opponent"),
         F.lit(True).alias("is_home"),
@@ -45,8 +38,11 @@ def generate_weekly_briefs(
         F.col("model_minus_market_home").alias("model_minus_market"),
     )
     away = cards.select(
-        F.lit(season).alias("season"),
-        F.lit(int(week)).alias("week"),
+        "game_id",
+        "season",
+        "season_type",
+        "week",
+        "start_date",
         F.col("away_team").alias("team"),
         F.col("home_team").alias("opponent"),
         F.lit(False).alias("is_home"),
@@ -63,26 +59,34 @@ def generate_weekly_briefs(
     )
     base = home.unionByName(away)
 
-    def brief_sql():
-        return base.withColumn(
+    def percent_text(column: str):
+        return F.when(F.col(column).isNull(), F.lit("n/a")).otherwise(
+            F.concat(F.round(F.col(column) * 100, 1).cast("string"), F.lit("%"))
+        )
+
+    return (
+        base.withColumn(
             "headline",
             F.concat(
                 F.col("team"),
                 F.lit(" vs "),
                 F.col("opponent"),
-                F.lit(" (Week "),
+                F.lit(" ("),
+                F.initcap(F.col("season_type")),
+                F.lit(" Week "),
                 F.col("week").cast("string"),
                 F.lit(")"),
             ),
-        ).withColumn(
+        )
+        .withColumn(
             "summary",
             F.concat(
                 F.lit("Model win probability: "),
-                F.round(F.col("model_win_prob") * 100, 1).cast("string"),
-                F.lit("%. "),
+                percent_text("model_win_prob"),
+                F.lit(". "),
                 F.lit("Market implied (if available): "),
-                F.coalesce(F.round(F.col("market_win_prob") * 100, 1).cast("string"), F.lit("n/a")),
-                F.lit("%. "),
+                percent_text("market_win_prob"),
+                F.lit(". "),
                 F.lit("SP+ "),
                 F.coalesce(F.round(F.col("team_sp"), 1).cast("string"), F.lit("n/a")),
                 F.lit(" vs "),
@@ -93,12 +97,96 @@ def generate_weekly_briefs(
                 F.coalesce(F.round(F.col("opp_ppa_off"), 3).cast("string"), F.lit("n/a")),
                 F.lit("."),
             ),
-        ).withColumn("disclaimer_market", F.lit(DISCLAIMER_MARKET)).withColumn(
-            "disclaimer_cfp", F.lit(DISCLAIMER_CFP)
-        ).withColumn("generated_at", F.lit(datetime.now(timezone.utc).isoformat()))
+        )
+        .withColumn("disclaimer_market", F.lit(DISCLAIMER_MARKET))
+        .withColumn("disclaimer_cfp", F.lit(DISCLAIMER_CFP))
+        .withColumn("generated_at", F.lit(datetime.now(timezone.utc).isoformat()))
+    )
 
-    out = brief_sql()
+
+def generate_weekly_briefs(
+    config: SaturdayHQConfig,
+    season: Optional[int] = None,
+    week: Optional[int] = None,
+    season_type: str = "regular",
+) -> str:
+    """Refresh one season/type of briefs without deleting any other historical scope.
+
+    `week=None` intentionally means every week in the requested season/type. The App has a week
+    selector, so persisting only the numerically highest scheduled week made nearly every selection
+    return no data. Supplying a week remains useful for a targeted repair.
+    """
+    started = perf_counter()
+    spark = _spark()
+    season = season or config.current_season
+    season_type = season_type.strip().lower()
+    if season_type not in {"regular", "postseason"}:
+        raise ValueError("season_type must be 'regular' or 'postseason'")
     table = config.gold("weekly_brief")
-    out.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    table_exists = spark.catalog.tableExists(table)
+    existing_columns = set(spark.table(table).columns) if table_exists else set()
+    predicate = f"season = {season} AND season_type = '{season_type}'"
+    if week is not None:
+        predicate += f" AND week = {int(week)}"
+
+    cards = (
+        spark.table(config.gold("matchup_card"))
+        .filter(F.col("season") == season)
+        .filter(F.lower(F.col("season_type")) == season_type)
+    )
+    if week is not None:
+        cards = cards.filter(F.col("week") == int(week))
+
+    out = _brief_rows(cards).cache()
+    card_count = cards.count()
+    brief_count = out.count()
+    if card_count == 0:
+        out.unpersist()
+        requested_week = "all weeks" if week is None else f"week {int(week)}"
+        if table_exists and "season_type" in existing_columns:
+            spark.sql(f"DELETE FROM {table} WHERE {predicate}")
+            outcome = "removed any stale rows in that scope"
+        else:
+            outcome = "no compatible brief table exists yet"
+        print(
+            f"Weekly briefs: no matchup-card games for season={season}, "
+            f"season_type={season_type}, {requested_week}; {outcome}; other history preserved"
+        )
+        return table
+    expected = card_count * 2
+    if brief_count != expected:
+        out.unpersist()
+        raise RuntimeError(f"Expected {expected} brief rows from {card_count} games, got {brief_count}")
+
+    scope = f"season={season}, season_type={season_type}"
+    if week is not None:
+        scope += f", week={int(week)}"
+    print(f"Weekly briefs: {scope} | games={card_count} | team briefs={brief_count}")
+
+    expected_columns = set(out.columns)
+
+    if not table_exists:
+        out.write.format("delta").partitionBy("season", "season_type").saveAsTable(table)
+        write_mode = "created"
+    elif existing_columns != expected_columns:
+        # One-time schema migration from the old week-only table. Recompute every available card
+        # so adding game_id/season_type cannot erase or strand historical rows.
+        print("Weekly briefs: schema changed; rebuilding all seasons and season types once")
+        all_out = _brief_rows(spark.table(config.gold("matchup_card")))
+        all_out.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(
+            table
+        )
+        write_mode = "migrated full history"
+    else:
+        out.write.format("delta").mode("overwrite").option("replaceWhere", predicate).saveAsTable(table)
+        write_mode = f"replaced only {predicate}"
+
     document_table(spark, table, "weekly_brief")
+    out.unpersist()
+    total_rows = spark.table(table).count()
+    total_seasons = spark.table(table).select("season").distinct().count()
+    print(
+        f"Weekly briefs: {write_mode} | stored rows={total_rows} across "
+        f"{total_seasons} season(s) | elapsed={perf_counter() - started:.1f}s"
+    )
     return table

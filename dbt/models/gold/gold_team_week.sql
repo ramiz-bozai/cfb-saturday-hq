@@ -1,7 +1,8 @@
 {{ config(alias='team_week') }}
 
 /*
-    One row per team-season-week: as-of form from completed games plus season SP+/PPA.
+    One row per team-season-season_type-week: as-of form from completed games plus season SP+/PPA.
+    Running windows use start_date, not week, because postseason week numbers restart at 1.
 
     SP+/PPA from the CFBD team endpoints are season aggregates, so the same season value
     is attached to every week; the rolling columns are what actually change week to week.
@@ -40,7 +41,9 @@ team_games as (
 
     select
         season,
+        season_type,
         week,
+        start_date,
         game_id,
         home_team as team,
         away_team as opponent,
@@ -54,7 +57,9 @@ team_games as (
 
     select
         season,
+        season_type,
         week,
+        start_date,
         game_id,
         away_team as team,
         home_team as opponent,
@@ -100,12 +105,12 @@ running as (
     window
         w_season as (
             partition by season, team
-            order by week, game_id
+            order by start_date, game_id
             rows between unbounded preceding and current row
         ),
         w_last3 as (
             partition by season, team
-            order by week, game_id
+            order by start_date, game_id
             rows between 2 preceding and current row
         )
 
@@ -120,8 +125,8 @@ latest_per_week as (
         fbs_wins / nullif(fbs_games_played, 0) as win_pct_fbs
     from running
     qualify row_number() over (
-        partition by season, team, week
-        order by game_id desc
+        partition by season, team, season_type, week
+        order by start_date desc, game_id desc
     ) = 1
 
 ),
@@ -132,12 +137,14 @@ fbs_only_form as (
 
     select
         season,
+        season_type,
         team,
         week,
+        start_date,
         game_id,
         avg(points_for - points_against) over (
             partition by season, team
-            order by week, game_id
+            order by start_date, game_id
             rows between 2 preceding and current row
         ) as avg_margin_l3_fbs
     from fbs_team_games
@@ -145,29 +152,33 @@ fbs_only_form as (
 
 ),
 
--- As-of join, same pattern game_features uses: newest FBS game at or before this week.
+-- As-of join, same pattern game_features uses: newest FBS game at or before this game timestamp.
 fbs_form_asof as (
 
     select
         f.season,
+        f.season_type,
         f.team,
         f.week,
+        f.start_date,
         ff.avg_margin_l3_fbs
     from latest_per_week as f
     left join fbs_only_form as ff
         on ff.season = f.season
        and ff.team = f.team
-       and ff.week <= f.week
+       and ff.start_date <= f.start_date
     qualify row_number() over (
-        partition by f.season, f.team, f.week
-        order by ff.week desc nulls last, ff.game_id desc nulls last
+        partition by f.season, f.team, f.season_type, f.week
+        order by ff.start_date desc nulls last, ff.game_id desc nulls last
     ) = 1
 
 )
 
 select
     f.season,
+    f.season_type,
     f.week,
+    f.start_date,
     f.game_id,
     f.team,
     f.opponent,
@@ -210,7 +221,10 @@ select
     {{ conference_group('f.conference', 'f.is_notre_dame') }} as conference_group
 from latest_per_week as f
 left join fbs_form_asof as ff
-    on ff.season = f.season and ff.team = f.team and ff.week = f.week
+    on ff.season = f.season
+   and ff.season_type = f.season_type
+   and ff.team = f.team
+   and ff.week = f.week
 left join {{ ref('silver_sp_plus') }} as sp
     on sp.season = f.season and sp.team = f.team
 left join {{ ref('silver_ppa_teams') }} as ppa

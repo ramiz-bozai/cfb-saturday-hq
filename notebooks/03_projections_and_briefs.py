@@ -14,7 +14,8 @@ REPO_PATH = ""
 ENV = ""  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 N_SIMS = 2000
-WEEK = None  # None => latest available week in data
+SEASON_TYPES = ("regular", "postseason")  # kept separate because their week numbers overlap
+WEEK = None  # None => every week in SEASON_TYPES; int => targeted repair/display
 
 if REPO_PATH.strip():
     sys.path.insert(0, f"{REPO_PATH.strip()}/src")
@@ -56,5 +57,27 @@ display(
 
 # COMMAND ----------
 
-brief_table = generate_weekly_briefs(config, season=config.current_season, week=WEEK)
-display(spark.table(brief_table).limit(50))
+for season_type in SEASON_TYPES:
+    brief_table = generate_weekly_briefs(
+        config,
+        season=config.current_season,
+        week=WEEK,
+        season_type=season_type,
+    )
+brief_columns = (
+    set(spark.table(brief_table).columns) if spark.catalog.tableExists(brief_table) else set()
+)
+if {"game_id", "season_type"}.issubset(brief_columns):
+    briefs = (
+        spark.table(brief_table)
+        .filter(F.col("season") == config.current_season)
+        .filter(F.lower(F.col("season_type")).isin(*[value.lower() for value in SEASON_TYPES]))
+    )
+    if WEEK is not None:
+        briefs = briefs.filter(F.col("week") == WEEK)
+    display(briefs.orderBy("season_type", "week", "game_id", "team").limit(50))
+else:
+    print(
+        "No current weekly_brief table yet: matchup_card has no games in the requested scopes, "
+        "or the legacy schema is waiting for a non-empty scope to trigger migration."
+    )

@@ -62,6 +62,9 @@ def main():
     season = st.sidebar.number_input(
         "Season", min_value=2015, max_value=2030, value=default_season()
     )
+    season_type = st.sidebar.selectbox(
+        "Season type", options=("regular", "postseason"), format_func=str.title
+    )
     week = st.sidebar.number_input("Week", min_value=0, max_value=16, value=1)
 
     profiles = load_table(f"SELECT * FROM {CATALOG}.{APP_SCHEMA}.demo_profiles ORDER BY display_name")
@@ -89,10 +92,10 @@ def main():
         st.write(f"Active profile teams: {', '.join(my_teams)}")
 
     with tab_slate:
-        st.subheader(f"Week {week} slate — model vs market")
+        st.subheader(f"{season_type.title()} Week {week} slate — model vs market")
         slate = load_table(
             f"""
-            SELECT week, home_team, away_team,
+            SELECT season_type, week, home_team, away_team,
                    round(model_home_win_prob, 3) AS model_home_win_prob,
                    round(market_home_win_prob_novig, 3) AS market_home_win_prob,
                    round(model_minus_market_home, 3) AS model_minus_market,
@@ -100,7 +103,9 @@ def main():
                    round(home_sp_overall, 1) AS home_sp,
                    round(away_sp_overall, 1) AS away_sp
             FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
-            WHERE season = {int(season)} AND week = {int(week)}
+            WHERE season = {int(season)}
+              AND lower(season_type) = '{season_type}'
+              AND week = {int(week)}
             ORDER BY abs(coalesce(model_minus_market_home, 0)) DESC
             """
         )
@@ -117,7 +122,9 @@ def main():
             f"""
             SELECT home_team, away_team
             FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
-            WHERE season = {int(season)} AND week = {int(week)}
+            WHERE season = {int(season)}
+              AND lower(season_type) = '{season_type}'
+              AND week = {int(week)}
             ORDER BY home_team
             """
         )
@@ -132,7 +139,9 @@ def main():
                 f"""
                 SELECT *
                 FROM {CATALOG}.{GOLD_SCHEMA}.matchup_card
-                WHERE season = {int(season)} AND week = {int(week)}
+                WHERE season = {int(season)}
+                  AND lower(season_type) = '{season_type}'
+                  AND week = {int(week)}
                   AND home_team = '{home}' AND away_team = '{away}'
                 """
             )
@@ -159,12 +168,15 @@ def main():
         team = st.selectbox("Team", my_teams or ["Alabama"])
         briefs = load_table(
             f"""
-            SELECT season, week, team, opponent, is_home, headline, summary,
+            SELECT game_id, season, season_type, week, team, opponent, is_home, headline, summary,
                    round(model_win_prob, 3) AS model_win_prob,
                    round(market_win_prob, 3) AS market_win_prob,
                    market_spread
             FROM {CATALOG}.{GOLD_SCHEMA}.weekly_brief
-            WHERE season = {int(season)} AND week = {int(week)} AND team = '{team}'
+            WHERE season = {int(season)}
+              AND lower(season_type) = '{season_type}'
+              AND week = {int(week)}
+              AND team = '{team}'
             """
         )
         if briefs.empty:

@@ -362,7 +362,7 @@ view, so the probabilities you just wrote are already visible through it.
 
 ## Step 5 — Notebook `03_projections_and_briefs.py`
 
-Constants: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `N_SIMS`, `WEEK`
+Constants: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `N_SIMS`, `SEASON_TYPES`, `WEEK`
 
 Creates:
 
@@ -370,6 +370,17 @@ Creates:
 - `cfb_gold.season_projections`
 - `cfb_gold.playoff_projections`
 - `cfb_gold.weekly_brief`
+
+`WEEK = None` generates every week in `SEASON_TYPES`; the default tuple refreshes both regular and
+postseason without mixing their overlapping week numbers. Set an integer only for a targeted
+repair. Brief grain is `game_id + team`, so each matchup yields home- and away-perspective rows.
+Each write replaces only the requested season/type (or week), preserving every other historical
+brief. The first run after the schema upgrade reconstructs all available history from
+`matchup_card`.
+
+The simulator prints input counts, 10% progress updates, and read/simulate/write timings. Its
+algorithmic optimization is parked in `DECISIONS.md`; use `N_SIMS = 1` only to debug or inspect a
+finished season, not to estimate in-season playoff probabilities.
 
 CFP logic code: `src/saturday_hq/cfp_rules.py`
 Simulator: `src/saturday_hq/projections/simulator.py`
@@ -404,7 +415,8 @@ job:
 Constants in 04: `REPO_PATH`, `MODE`, `CURRENT_SEASON`, `WEEK`, `FORCE_OUT_OF_SEASON`,
 secrets. There is no `ENV` here — the ingest writes to the shared raw volume, so it is the
 same work no matter which environment consumes it.
-Constants in 05: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `MODEL_NAME`, `WEEK`, `N_SIMS`.
+Constants in 05: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `MODEL_NAME`, `SEASON_TYPES`, `WEEK`,
+`N_SIMS`. `WEEK = None` refreshes all regular and postseason weeks while preserving prior seasons.
 
 **Nothing in here needs editing between runs.** The season comes from today's date, the pull
 always targets that season, and dbt reads the newest drop automatically. Re-running the same

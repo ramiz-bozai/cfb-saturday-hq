@@ -241,8 +241,24 @@ def score_games(
     scored["model_version"] = version_label
     scored["scored_at"] = datetime.now(timezone.utc).isoformat()
 
-    sdf = spark.createDataFrame(scored)
+    # Match the stable table contract explicitly so data can be overwritten without
+    # overwriteSchema, which would discard Unity Catalog column comments on every score run.
+    sdf = spark.createDataFrame(scored).select(
+        F.col("game_id").cast("bigint").alias("game_id"),
+        F.col("season").cast("int").alias("season"),
+        F.col("week").cast("int").alias("week"),
+        F.col("model_home_win_prob").cast("double").alias("model_home_win_prob"),
+        F.col("model_version").cast("string").alias("model_version"),
+        F.col("scored_at").cast("string").alias("scored_at"),
+    )
     table = config.gold("game_predictions")
-    sdf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    if seasons and spark.catalog.tableExists(table):
+        requested_seasons = sorted({int(value) for value in seasons})
+        predicate = f"season IN ({', '.join(str(value) for value in requested_seasons)})"
+        sdf.write.format("delta").mode("overwrite").option("replaceWhere", predicate).saveAsTable(
+            table
+        )
+    else:
+        sdf.write.format("delta").mode("overwrite").saveAsTable(table)
     document_table(spark, table, "game_predictions")
     return table

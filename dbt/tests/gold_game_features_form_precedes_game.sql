@@ -1,12 +1,15 @@
--- Form must be drawn from a week strictly before the game. A team_week row is cumulative
--- through its own week, so an inclusive cutoff leaks the outcome being predicted into
--- win_pct and avg_margin_l3 — worth ~10 points of holdout accuracy in fake skill.
+-- Form must be drawn from a game strictly before the predicted game's start. A team_week row is
+-- cumulative through its source game, so an inclusive cutoff leaks the outcome being predicted.
+-- Timestamps, rather than week numbers, also preserve chronology when postseason Week 1 follows
+-- regular Week 15.
 select
     game_id,
     season,
+    season_type,
     week,
-    home_feature_week,
-    away_feature_week
+    start_date,
+    home_feature_start_date,
+    away_feature_start_date
 from {{ ref('gold_game_features') }}
-where home_feature_week >= week
-   or away_feature_week >= week
+where home_feature_start_date >= start_date
+   or away_feature_start_date >= start_date

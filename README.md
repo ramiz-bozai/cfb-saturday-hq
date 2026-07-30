@@ -30,6 +30,10 @@ graph rather than buried in a subprocess call.
 `cfb_gold.matchup_card` is a dbt **view** over the model's predictions, so no dbt run is
 needed after scoring.
 
+Weekly briefs are historical serving data, not a one-week scratch table. Each row is one
+`game_id + team` perspective with explicit `season_type`; refreshing one season/type replaces only
+that scope and preserves every other season already stored.
+
 ## Catalogs
 | Catalog | Holds | Written by |
 |---|---|---|

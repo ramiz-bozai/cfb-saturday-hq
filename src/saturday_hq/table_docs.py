@@ -67,6 +67,11 @@ _GAME_PREDICTIONS = {
 }
 
 _WEEKLY_BRIEF = {
+    "game_id": "CFBD game identifier. Together with team, this is the row's unique grain.",
+    "season": "Year the season kicked off in.",
+    "season_type": "regular or postseason; required because both can use the same week number.",
+    "week": "Week within season_type.",
+    "start_date": "Scheduled game start from the matchup card.",
     "team": "The team this brief is written for. Each game produces two rows, one per side.",
     "opponent": "Who they play.",
     "is_home": "Whether this team is at home.",
@@ -96,12 +101,26 @@ COLUMN_COMMENTS: Mapping[str, Mapping[str, str]] = {
 }
 
 
-def document_table(spark, table: str, key: str) -> None:
-    """Apply this project's column comments to a Unity Catalog table.
+def document_table(spark, table: str, key: str) -> int:
+    """Apply only missing or changed Unity Catalog column comments.
 
-    `table` is the fully qualified name just written; `key` selects the comment set. Called right
-    after a write, since overwriting with overwriteSchema drops existing comments.
+    A previous implementation submitted one ALTER TABLE per documented column after every write,
+    even when the comments were already correct. DESCRIBE is one metadata request; steady-state
+    runs now issue zero ALTERs. The return value is the number of comments changed.
     """
-    for column, comment in COLUMN_COMMENTS.get(key, {}).items():
+    desired = COLUMN_COMMENTS.get(key, {})
+    if not desired:
+        return 0
+
+    current = {
+        row["col_name"]: row["comment"]
+        for row in spark.sql(f"DESCRIBE TABLE {table}").collect()
+        if row["col_name"] in desired
+    }
+    pending = {column: comment for column, comment in desired.items() if current.get(column) != comment}
+
+    for column, comment in pending.items():
         escaped = comment.replace("'", "''")
         spark.sql(f"ALTER TABLE {table} ALTER COLUMN {column} COMMENT '{escaped}'")
+    print(f"Table docs: {table} | updated {len(pending)} of {len(desired)} column comments")
+    return len(pending)

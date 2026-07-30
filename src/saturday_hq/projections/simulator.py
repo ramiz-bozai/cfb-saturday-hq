@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from time import perf_counter
 from typing import Optional
 
 import numpy as np
@@ -20,9 +21,11 @@ def _spark() -> SparkSession:
 
 def build_preseason_ratings(config: SaturdayHQConfig, season: Optional[int] = None) -> str:
     """Simple transparent preseason composite emphasizing SP+ and PPA."""
+    started = perf_counter()
     spark = _spark()
     season = season or config.current_season
     prior = season - 1
+    print(f"Preseason ratings: season={season} | prior-rating season={prior}")
 
     # Season-grained, because the CFP automatic-qualifier logic keys off conference and this
     # function is parameterized by season: silver_teams would hand a 2019 run today's alignment.
@@ -80,8 +83,12 @@ def build_preseason_ratings(config: SaturdayHQConfig, season: Optional[int] = No
     ]
     sdf = spark.createDataFrame(pdf[keep])
     table = config.gold("preseason_team_ratings")
-    sdf.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    sdf.write.format("delta").mode("overwrite").saveAsTable(table)
     document_table(spark, table, "preseason_team_ratings")
+    print(
+        f"Preseason ratings: wrote {len(pdf)} teams to {table} | "
+        f"elapsed={perf_counter() - started:.1f}s"
+    )
     return table
 
 
@@ -97,9 +104,15 @@ def simulate_season(
     use_model_probs: bool = True,
 ) -> dict:
     """Monte Carlo remaining/full schedule; apply CFP AQ rules on simulated ranks."""
+    if n_sims < 1:
+        raise ValueError("n_sims must be at least 1")
+
+    started = perf_counter()
     spark = _spark()
     season = season or config.current_season
+    print(f"Season simulation: season={season} | requested simulations={n_sims}")
 
+    read_started = perf_counter()
     games = (
         spark.table(config.silver("games"))
         .filter(F.col("season") == season)
@@ -124,6 +137,7 @@ def simulate_season(
             )
         except Exception:
             preds = None
+    read_seconds = perf_counter() - read_started
 
     teams = sorted(set(games["home_team"]).union(set(games["away_team"])))
     teams = [t for t in teams if t in ratings.index]
@@ -136,6 +150,16 @@ def simulate_season(
 
     completed = games[games["completed"] == True]  # noqa: E712
     remaining = games[games["completed"] != True]  # noqa: E712
+    print(
+        f"Season simulation inputs: teams={n_teams} | regular games={len(games)} | "
+        f"completed={len(completed)} | remaining={len(remaining)} | "
+        f"model probabilities={0 if preds is None else len(preds)} | read={read_seconds:.1f}s"
+    )
+    if remaining.empty:
+        print(
+            "Season simulation note: no remaining regular-season games. Results are deterministic; "
+            "simulator optimization/automatic short-circuit is parked, so the requested loop still runs."
+        )
 
     base_wins = np.zeros(n_teams, dtype=np.int16)
     for _, g in completed.iterrows():
@@ -151,6 +175,8 @@ def simulate_season(
     seed_sum = {t: 0.0 for t in teams}
     seed_n = {t: 0 for t in teams}
 
+    simulation_started = perf_counter()
+    progress_every = max(1, n_sims // 10)
     for s in range(n_sims):
         wins = base_wins.copy()
         conf_wins = {t: 0 for t in teams}
@@ -224,6 +250,13 @@ def simulate_season(
                 playoff_hits[bid.team] += 1
                 seed_sum[bid.team] += bid.seed or 0
                 seed_n[bid.team] += 1
+        completed_sims = s + 1
+        if completed_sims == n_sims or completed_sims % progress_every == 0:
+            print(
+                f"Season simulation progress: {completed_sims}/{n_sims} "
+                f"({100 * completed_sims / n_sims:.0f}%)"
+            )
+    simulation_seconds = perf_counter() - simulation_started
 
     # Aggregate
     rows = []
@@ -244,15 +277,19 @@ def simulate_season(
                 "disclaimer": DISCLAIMER_CFP,
             }
         )
+    write_started = perf_counter()
     proj = spark.createDataFrame(pd.DataFrame(rows))
     table = config.gold("season_projections")
-    proj.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(table)
+    proj.write.format("delta").mode("overwrite").saveAsTable(table)
     document_table(spark, table, "season_projections")
 
     # Convenience playoff board
     playoff = proj.orderBy(F.col("playoff_odds").desc())
-    playoff.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable(
-        config.gold("playoff_projections")
-    )
+    playoff.write.format("delta").mode("overwrite").saveAsTable(config.gold("playoff_projections"))
     document_table(spark, config.gold("playoff_projections"), "playoff_projections")
+    write_seconds = perf_counter() - write_started
+    print(
+        f"Season simulation complete: simulation={simulation_seconds:.1f}s | "
+        f"write+metadata={write_seconds:.1f}s | total={perf_counter() - started:.1f}s"
+    )
     return {"season_projections": table, "playoff_projections": config.gold("playoff_projections")}
