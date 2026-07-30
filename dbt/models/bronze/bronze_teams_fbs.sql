@@ -1,8 +1,8 @@
 {{ config(alias='teams_fbs') }}
 
-{#- The /teams/fbs payload carries no year, so the season comes from the landing path. -#}
+{#- Prefer an injected year (preview/historical tag); else derive season from the landing path. -#}
 {%- set projection -%}
-    {{ landing_season() }} as season,
+    coalesce(cast(year as int), {{ landing_season() }}) as season,
     cast(id as int) as team_id,
     school as team,
     mascot,

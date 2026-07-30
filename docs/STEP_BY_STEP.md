@@ -547,10 +547,30 @@ App config: `app/app.yaml`
    prod; point the catalog at `cfb_saturday_hq_dev` in a second app if you want a dev preview.
 6. Deploy and start the app.
 
-The SQL privilege commands for step 4 are in `docs/APP_DEPLOYMENT.md`.
+## Offseason Preview ingest
 
-Screens: Home, Slate (model vs market), Matchup, Projections, Brief.
-The season picker defaults to the same date-derived season the pipeline uses.
+For the **Preview** tab (roster continuity / portal / QB rooms):
+
+1. Run `notebooks/06_preview_ingest.py` on Databricks (or locally
+   `PYTHONPATH=src python scripts/sync_preview_domains.py`).
+2. It pulls the upcoming season (July → calendar year, e.g. 2026) plus the prior season’s
+   production domains into `incremental/dt=YYYY-MM-DD/`.
+3. Build player models:
+
+```bash
+cd dbt
+dbt build --target prod --select bronze_rosters+ bronze_player_portal+ bronze_player_returning+ bronze_player_usage+ bronze_player_season_stats+ bronze_ppa_players_season+ bronze_recruiting_players+ bronze_draft_picks+
+```
+
+CFBD often has no published roster for the upcoming season until near camp. Preview then
+**constructs** the roster from the prior season plus portal arrivals/departures, and
+**subtracts NFL draft picks** from CFBD `/draft/picks` (draft year N exits college season N).
+Undrafted NFL leavers who never entered the portal are still a residual gap.
+
+Job: `saturday-hq-preview-refresh-${env}` in `resources/jobs.yml`.
+
+Screens: Home, Slate (model vs market), Matchup, Projections, Brief, **Preview**.
+Preview season defaults to the upcoming year before August (July 2026 → 2026).
 
 **Done when:** you can click profile → slate → matchup → brief without errors.
 

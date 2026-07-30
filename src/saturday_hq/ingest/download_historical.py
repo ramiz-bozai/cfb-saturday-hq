@@ -17,10 +17,14 @@ from saturday_hq.cfbd_client import CFBDClient, dumps_jsonl
 from saturday_hq.config import (
     HISTORICAL_DOMAINS,
     MARKET_DOMAINS,
+    PREVIEW_DOMAINS,
+    PREVIEW_PRIOR_DOMAINS,
+    PREVIEW_UPCOMING_ONLY_DOMAINS,
     SEASON_STATIC_DOMAINS,
     STATIC_DOMAINS,
     WEEKLY_DOMAINS,
     SaturdayHQConfig,
+    preview_season,
 )
 
 
@@ -37,17 +41,17 @@ def plan_domains(
     season: int,
     mode: str = "weekly",
 ) -> List[str]:
-    """Domains worth calling for this run, cheapest correct set.
+    """Domains worth calling for this run.
 
-    CFBD calls are the scarce resource, so a run pulls only what can have changed:
-
-    - "market" -> lines only. This is the mid-week refresh.
-    - "weekly" -> everything that moves when games are played, plus the season-static
-      domains on the first in-season run of a season, plus static reference data if its
-      file is missing.
+    - "market" -> lines only. Mid-week refresh.
+    - "weekly" -> game/rating domains, plus season-static on first in-season run.
+    - "preview" -> player-level Offseason Preview domains.
     """
     if mode == "market":
         return list(MARKET_DOMAINS)
+
+    if mode == "preview":
+        return list(PREVIEW_DOMAINS)
 
     domains = list(WEEKLY_DOMAINS)
 
@@ -67,6 +71,12 @@ def plan_domains(
         domains += list(SEASON_STATIC_DOMAINS)
 
     return domains
+
+
+def preview_years(today=None) -> List[int]:
+    """Years a preview pull should cover: upcoming season + prior completed season."""
+    upcoming = preview_season(today)
+    return [upcoming - 1, upcoming]
 
 
 def mark_season_static_done(config: SaturdayHQConfig, season: int, manifest: List[dict]) -> None:
@@ -103,6 +113,20 @@ def write_jsonl(path: str, records: list) -> int:
     payload = dumps_jsonl(records)
     Path(path).write_text(payload, encoding="utf-8")
     return len(records)
+
+
+def _tag_teams_fbs_year(records: list, year: int) -> list:
+    """Inject year into /teams/fbs rows so season does not depend on the landing path.
+
+    Needed for offseason preview drops in July: landing_season() from dt=2026-07-30 would
+    otherwise resolve to 2025.
+    """
+    tagged = []
+    for row in records:
+        copy = dict(row)
+        copy["year"] = year
+        tagged.append(copy)
+    return tagged
 
 
 def download_historical_to_volume(
@@ -146,9 +170,10 @@ def download_historical_to_volume(
         for domain in domain_list:
             if domain == "conferences":
                 continue
-            # Lines exist from ~2013; talent/recruiting/sp/ppa vary by year availability.
             try:
                 records = client.fetch_domain(domain, year=year)
+                if domain == "teams_fbs":
+                    records = _tag_teams_fbs_year(records, year)
             except Exception as exc:  # noqa: BLE001 - continue backfill; log failure
                 manifest.append(
                     {
@@ -190,11 +215,7 @@ def download_incremental_to_volume(
     week: Optional[int] = None,
     season_types: Sequence[str] = ("regular", "postseason"),
 ) -> List[dict]:
-    """In-season refresh path: write a dated drop under incremental/.
-
-    Pass `domains` from plan_domains() rather than defaulting to every domain — the default
-    is the full list, which costs 13 calls.
-    """
+    """Dated drop under incremental/. Pass domains from plan_domains()."""
     domain_list = list(domains) if domains is not None else list(HISTORICAL_DOMAINS)
     pulled_at = datetime.now(timezone.utc)
     date_str = pulled_at.strftime("%Y-%m-%d")
@@ -211,6 +232,8 @@ def download_incremental_to_volume(
                 records = client.fetch_domain(
                     domain, year=year, week=week, season_types=season_types
                 )
+                if domain == "teams_fbs":
+                    records = _tag_teams_fbs_year(records, year)
         except Exception as exc:  # noqa: BLE001
             manifest.append(
                 {
@@ -241,5 +264,85 @@ def download_incremental_to_volume(
         )
 
     manifest_path = f"{root}/_manifest.json"
+    Path(manifest_path).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def download_preview_to_volume(
+    client: CFBDClient,
+    config: SaturdayHQConfig,
+    upcoming_season: Optional[int] = None,
+    domains: Optional[Sequence[str]] = None,
+) -> List[dict]:
+    """Offseason Preview pull: upcoming season + prior-season production domains.
+
+    Writes under incremental/dt=YYYY-MM-DD/ like other refreshes. Prior-only domains
+    (usage, stats, PPA, returning, prior rosters) are fetched for upcoming-1; portal,
+    recruiting, teams_fbs, and rosters are fetched for both years so constructed 2026
+    rosters can fall back when CFBD has not published the upcoming roster yet.
+    Draft picks are upcoming-year only (draft year N exits the college season-N roster).
+    """
+    upcoming = upcoming_season or preview_season()
+    prior = upcoming - 1
+    domain_list = list(domains) if domains is not None else list(PREVIEW_DOMAINS)
+    pulled_at = datetime.now(timezone.utc)
+    date_str = pulled_at.strftime("%Y-%m-%d")
+    ts = pulled_at.isoformat()
+    root = f"{config.incremental_path}/dt={date_str}"
+    _ensure_dir(root)
+    manifest: List[dict] = []
+
+    # Teams first so roster fan-out can reuse the same season membership if needed.
+    ordered = [d for d in domain_list if d == "teams_fbs"] + [
+        d for d in domain_list if d != "teams_fbs"
+    ]
+
+    for year in (prior, upcoming):
+        for domain in ordered:
+            if year == prior and domain in PREVIEW_UPCOMING_ONLY_DOMAINS:
+                continue
+            # Skip prior-only domains for the upcoming year when CFBD typically has nothing
+            # yet — still attempt portal/recruiting/teams/rosters for the upcoming year.
+            if year == upcoming and domain in PREVIEW_PRIOR_DOMAINS and domain not in (
+                "rosters",
+                "player_returning",
+            ):
+                # usage / stats / ppa are prior-season facts; skip empty upcoming pulls.
+                if domain in ("player_usage", "player_season_stats", "ppa_players_season"):
+                    continue
+            try:
+                records = client.fetch_domain(domain, year=year)
+                if domain == "teams_fbs":
+                    records = _tag_teams_fbs_year(records, year)
+            except Exception as exc:  # noqa: BLE001
+                manifest.append(
+                    {
+                        "domain": domain,
+                        "year": year,
+                        "path": None,
+                        "rows": 0,
+                        "pulled_at": ts,
+                        "mode": "preview",
+                        "error": str(exc),
+                    }
+                )
+                continue
+
+            # Incremental layout is one file per domain per drop. When pulling two years in
+            # one preview run, write year-partitioned filenames so both survive.
+            out = f"{root}/{domain}/{domain}_year={year}.jsonl"
+            n = write_jsonl(out, records)
+            manifest.append(
+                {
+                    "domain": domain,
+                    "year": year,
+                    "path": out,
+                    "rows": n,
+                    "pulled_at": ts,
+                    "mode": "preview",
+                }
+            )
+
+    manifest_path = f"{root}/_manifest_preview.json"
     Path(manifest_path).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest

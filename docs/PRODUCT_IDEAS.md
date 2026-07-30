@@ -308,12 +308,158 @@ there is a model that can be honestly evaluated for that target.
 - A team page explains current quality, trajectory, schedule, and stakes without requiring the data
   dictionary.
 
+## Offseason / upcoming-season preview
+
+**Status: in progress.** Preview tab and gold models are in the repo and built in prod for
+2026 (constructed rosters from 2025 + production weighting). CFBD has not published 2026
+rosters/returning yet. The 2026 portal pull was rate-limited during the initial sync — re-run
+`notebooks/06_preview_ingest.py` or `scripts/sync_preview_domains.py` later today, then
+`dbt build --select bronze_player_portal+`, so portal ledgers and transfer dependency light up.
+
+Current pipelines stop at team-season and team-week grains. Player-level CFBD domains are now
+wired in the client and dbt; land them before expecting Preview to populate.
+
+### CFBD domains to add
+
+| Domain | Endpoint | Role |
+| --- | --- | --- |
+| `rosters` | `/roster` | Current/prior roster, positions, class, eligibility |
+| `player_portal` | `/player/portal` | Transfer arrivals and departures |
+| `player_returning` | `/player/returning` | Team returning-production percentages |
+| `player_usage` | `/player/usage` | Prior-season usage / snap share |
+| `player_season_stats` | `/stats/player/season` | Box-score production by category |
+| `player_season_overview` | `/player/season` or `/ppa/players/season` | PPA / success / explosiveness |
+| `recruiting_players` | `/recruiting/players` | Stars, rating, position, class year |
+
+Treat portal + recruiting players as season-static (refresh periodically in the offseason).
+Treat returning production as a season-static snapshot once CFBD publishes it for the upcoming
+year. Player stats/usage/overview are historical backfills through the prior completed season.
+
+### Design principles
+
+- Weight transfers by **prior usage and production**, not recruiting stars alone.
+- Separate **impact** vs **depth** for both additions and losses.
+- Prefer **unit continuity grades** over a single returning-starters count.
+- Keep QB rooms as their own surface; quarterback uncertainty dominates offseason narrative.
+- Never claim projected starters without an explicit rule (usage threshold + roster presence).
+
+### Gold tables to build
+
+1. `player_season` — one row per athlete-season: team, position group, usage, production
+   metrics, PPA, recruiting profile.
+2. `roster_snapshot` — athlete on a team for a given season, linked to prior-season production.
+3. `portal_moves` — from/to, date, prior usage, prior production, impact vs depth class.
+4. `returning_production_team` — offense/defense and category-level returning %.
+5. `unit_continuity` — grade inputs per team × position group × season.
+6. `transfer_dependency` — team-level dependency score and components.
+7. `qb_room` — classified QB room for each team-season.
+8. Serving views / `matchup`-style cards for the Preview tab (overview + team detail).
+
+### Unit continuity grades
+
+Position groups: QB, RB, WR/TE, OL, DL, LB, Secondary, Special teams.
+
+For each group show:
+
+- Production returning
+- Usage returning
+- Recruiting talent retained / added
+- Transfer additions and departures (impact vs depth)
+- Experience
+- Replacement risk
+- Net production / talent gained
+
+### Portal impact ledger
+
+For each team:
+
+- Impact additions / depth additions
+- Impact losses / depth losses
+- Net production gained
+- Net talent gained
+- Projected starters added / lost
+
+Impact rule (v1): prior-season usage above a position-specific threshold **or** top-N share of
+team production at that position. Stars alone never create “impact.”
+
+### Transfer dependency score
+
+Team-level composite from:
+
+- Share of expected starting usage from transfers
+- Share of departed production replaced by transfers
+- Count of critical units relying on new arrivals
+- Average prior production of incoming transfers
+
+### Replacement risk
+
+Highlight departed production that returning/incoming players do not cover.
+
+Example shape:
+
+> Highest replacement risk: Edge
+> 71% of team sack production left; no returning player had more than two sacks.
+
+### QB room page
+
+**Landed (Phase A):** returning-starter status, career attempts / weighted career PPA, prior
+attempts, rushing contribution + rush-share proxy, INT rate + turnover rate (INT+fumbles when
+present), recruiting stars/rating, transfer count / last origin, backup flag + second-QB prior
+attempts, room classification rule tree.
+
+**Deferred (Phase B — need endpoints not landed today):** success rate, explosiveness, sack rate,
+team W-L with each QB. Do not surface these in the UI until they exist in gold.
+
+Room classes:
+
+- Proven elite starter
+- Proven average starter
+- High-upside transfer
+- Unproven competition
+- Experienced but limited
+- Major uncertainty
+
+### App surfaces
+
+**Preview tab — overview (all FBS):**
+
+- Returning production leaders / laggards
+- Highest transfer dependency
+- Highest replacement risk
+- Biggest portal winners / losers
+- QB rooms by uncertainty class
+
+**Preview tab — team:**
+
+- Returning production dashboard (offense/defense + categories)
+- Unit continuity grades
+- Portal impact ledger
+- Transfer dependency score
+- Replacement-risk callouts
+- QB room
+
+### Build order (offseason track)
+
+1. **Ingest foundations** — CFBD client + domain tiers + historical/offseason pull for the seven
+   player domains; bronze + silver with athlete IDs and position-group mapping.
+2. **Returning production + unit continuity** — gold tables and Preview overview/team cards for
+   continuity (largest fan value for least custom logic).
+3. **Portal impact ledger** — usage-weighted adds/losses and net production.
+4. **Transfer dependency + replacement risk** — team scores and callouts.
+5. **QB room** — dedicated classification and team page section.
+6. **Polish** — sorting, conference filters, shareable team deep links.
+
+Do not ship an empty Preview tab backed by stubs. Ship after silver player data exists for at
+least the prior season and the upcoming roster/portal snapshot.
+
 ## Recommended order
 
-1. Weekly game cards and fan-oriented rankings
-2. Team page and better season defaults
-3. Per-game model contributions
-4. Append-only prediction history and accountability
-5. Walk-forward backtest and production refit
-6. Conditional playoff scenarios
-7. Personalized alerts and deeper modeling inputs
+1. Weekly game cards and fan-oriented rankings *(done for cards)*
+2. **Offseason Preview track** (ingest → continuity → portal → dependency → QB room)
+3. Fix Week 1 preseason feature join (prior SP+/talent available before any games)
+4. Team page and better season defaults
+5. Per-game model contributions
+6. Append-only prediction history and accountability
+7. Walk-forward backtest and production refit
+8. Conditional playoff scenarios
+9. Personalized alerts and deeper modeling inputs

@@ -18,6 +18,17 @@ def current_cfb_season(today: Optional[date] = None) -> int:
     return today.year if today.month >= SEASON_START_MONTH else today.year - 1
 
 
+def preview_season(today: Optional[date] = None) -> int:
+    """Upcoming season fans care about in the offseason.
+
+    Before August, that is the calendar year (e.g. July 2026 -> 2026). From August on, it matches
+    current_cfb_season(). Distinct from current_cfb_season(), which still points at the last
+    completed season until kickoff.
+    """
+    today = today or date.today()
+    return today.year if today.month < SEASON_START_MONTH else current_cfb_season(today)
+
+
 # Bronze/silver/gold are built once per environment, each in its own catalog. The raw CFBD
 # files are NOT: they land in one shared volume that neither environment owns, so the API is
 # only ever called once and dev reads exactly what prod reads.
@@ -85,6 +96,15 @@ HISTORICAL_DOMAINS = (
     "recruiting_teams",
     "rankings",
     "lines",
+    # Player-level domains for Offseason Preview (rosters require one call per FBS team).
+    "rosters",
+    "player_portal",
+    "player_returning",
+    "player_usage",
+    "player_season_stats",
+    "ppa_players_season",
+    "recruiting_players",
+    "draft_picks",
 )
 
 # CFBD calls are the scarce resource, so the refresh is tiered by how often a domain actually
@@ -112,7 +132,34 @@ WEEKLY_DOMAINS = (
 # mid-week pull costs 1-2 calls instead of a full weekly run.
 MARKET_DOMAINS = ("lines",)
 
-INGEST_MODES = ("weekly", "market")
+# Offseason Preview: player domains for the upcoming season plus prior-season production.
+# Allowed outside the Aug–Jan window. Rosters dominate the call count (~130 teams / year).
+PREVIEW_DOMAINS = (
+    "teams_fbs",
+    "rosters",
+    "player_portal",
+    "player_returning",
+    "player_usage",
+    "player_season_stats",
+    "ppa_players_season",
+    "recruiting_players",
+    "draft_picks",
+)
+
+# Domains that need the prior completed season (production/usage) as well as the preview year.
+PREVIEW_PRIOR_DOMAINS = (
+    "rosters",
+    "player_returning",
+    "player_usage",
+    "player_season_stats",
+    "ppa_players_season",
+)
+
+# Draft year N removes athletes from the college season-N constructed roster. Only the
+# upcoming draft year is needed for Preview (one CFBD call).
+PREVIEW_UPCOMING_ONLY_DOMAINS = ("draft_picks",)
+
+INGEST_MODES = ("weekly", "market", "preview")
 DEFAULT_INGEST_MODE = "weekly"
 INGEST_MODE_VAR = "SATURDAY_HQ_INGEST_MODE"
 

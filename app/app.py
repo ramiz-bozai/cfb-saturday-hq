@@ -19,8 +19,15 @@ SEASON_START_MONTH = 8
 
 
 def default_season(today: date | None = None) -> int:
+    """In-season / completed-season default for Slate and related tabs."""
     today = today or date.today()
     return today.year if today.month >= SEASON_START_MONTH else today.year - 1
+
+
+def preview_season(today: date | None = None) -> int:
+    """Upcoming season for Offseason Preview (July 2026 -> 2026)."""
+    today = today or date.today()
+    return today.year if today.month < SEASON_START_MONTH else default_season(today)
 
 DISCLAIMER_MARKET = (
     "For analysis and entertainment only. Not gambling advice. "
@@ -282,6 +289,284 @@ def render_game_grid(games: pd.DataFrame, my_teams: List[str]) -> None:
                 render_game_card(game, my_teams)
 
 
+def _fmt_pct(value) -> str:
+    number = _number(value)
+    return "—" if number is None else f"{number:.0%}"
+
+
+def _fmt_num(value, digits: int = 1) -> str:
+    number = _number(value)
+    return "—" if number is None else f"{number:.{digits}f}"
+
+
+def render_preview_tab(catalog: str, gold_schema: str, my_teams: List[str]) -> None:
+    st.subheader("Offseason Preview")
+    st.caption(
+        "Roster continuity, portal impact, and QB rooms for the upcoming season. "
+        "Transfers are weighted by prior usage and production, not stars alone. "
+        "When CFBD has not published the upcoming roster yet, Saturday HQ constructs it "
+        "from the prior roster plus portal moves."
+    )
+
+    preview = st.sidebar.number_input(
+        "Preview season",
+        min_value=2015,
+        max_value=2030,
+        value=preview_season(),
+        key="preview_season",
+    )
+    view = st.radio("View", options=("Overview", "Team"), horizontal=True, key="preview_view")
+
+    teams = load_table(
+        f"""
+        SELECT DISTINCT team
+        FROM {catalog}.{gold_schema}.roster_snapshot
+        WHERE season = {int(preview)}
+        ORDER BY team
+        """
+    )
+    if teams.empty:
+        st.info(
+            f"No Preview tables for {int(preview)} yet. "
+            "Run notebook 06 (preview ingest) and `dbt build` for the player models."
+        )
+        return
+
+    team_list = teams["team"].tolist()
+    default_team = next((t for t in my_teams if t in team_list), team_list[0])
+
+    if view == "Overview":
+        returning = load_table(
+            f"""
+            SELECT team, conference,
+                   round(percent_ppa, 3) AS pct_ppa_returning,
+                   round(percent_offense_returning, 3) AS pct_offense_returning,
+                   round(percent_defense_returning, 3) AS pct_defense_returning,
+                   round(percent_usage, 3) AS pct_usage_returning,
+                   round(percent_production, 3) AS pct_production_returning,
+                   round(percent_sacks, 3) AS pct_sacks_returning,
+                   source
+            FROM {catalog}.{gold_schema}.returning_production_team
+            WHERE season = {int(preview)}
+            ORDER BY coalesce(percent_ppa, percent_production) ASC NULLS LAST
+            LIMIT 40
+            """
+        )
+        dependency = load_table(
+            f"""
+            SELECT team,
+                   round(transfer_dependency_score, 1) AS dependency_score,
+                   round(pct_usage_from_transfers, 3) AS pct_usage_from_transfers,
+                   critical_units_on_transfers,
+                   impact_additions,
+                   impact_losses
+            FROM {catalog}.{gold_schema}.transfer_dependency
+            WHERE season = {int(preview)}
+            ORDER BY transfer_dependency_score DESC
+            LIMIT 25
+            """
+        )
+        portal = load_table(
+            f"""
+            SELECT team,
+                   impact_additions, depth_additions,
+                   impact_losses, depth_losses,
+                   round(net_production_gained, 1) AS net_production_gained,
+                   round(net_talent_gained, 2) AS net_talent_gained,
+                   projected_starters_added, projected_starters_lost,
+                   round(avg_continuity_score, 1) AS avg_continuity
+            FROM {catalog}.{gold_schema}.portal_team_ledger
+            WHERE season = {int(preview)}
+            ORDER BY net_production_gained DESC
+            LIMIT 25
+            """
+        )
+        risk = load_table(
+            f"""
+            SELECT team, position_group, replacement_risk, metric_name,
+                   round(departed_share, 3) AS departed_share,
+                   round(best_returner_metric, 1) AS best_returner_metric,
+                   round(continuity_score, 1) AS continuity_score, callout
+            FROM {catalog}.{gold_schema}.replacement_risk
+            WHERE season = {int(preview)}
+            ORDER BY coalesce(departed_share, 0) DESC, continuity_score ASC
+            LIMIT 30
+            """
+        )
+        qb_rooms = load_table(
+            f"""
+            SELECT team, room_class, count(*) AS qbs
+            FROM {catalog}.{gold_schema}.qb_room
+            WHERE season = {int(preview)}
+            GROUP BY team, room_class
+            ORDER BY
+              case room_class
+                when 'Major uncertainty' then 1
+                when 'Unproven competition' then 2
+                when 'High-upside transfer' then 3
+                when 'Experienced but limited' then 4
+                when 'Proven average starter' then 5
+                when 'Proven elite starter' then 6
+                else 7
+              end,
+              team
+            """
+        )
+
+        st.markdown("#### Lowest returning production")
+        st.dataframe(returning, width="stretch")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.markdown("#### Highest transfer dependency")
+            st.dataframe(dependency, width="stretch")
+        with col_b:
+            st.markdown("#### Portal winners (net production)")
+            st.dataframe(portal, width="stretch")
+        st.markdown("#### Replacement risk callouts")
+        st.dataframe(risk, width="stretch")
+        st.markdown("#### QB rooms by class")
+        st.dataframe(qb_rooms, width="stretch")
+        return
+
+    team = st.selectbox(
+        "Team",
+        options=team_list,
+        index=team_list.index(default_team),
+        key="preview_team",
+    )
+    safe_team = team.replace("'", "''")
+
+    ret = load_table(
+        f"""
+        SELECT *
+        FROM {catalog}.{gold_schema}.returning_production_team
+        WHERE season = {int(preview)} AND team = '{safe_team}'
+        """
+    )
+    units = load_table(
+        f"""
+        SELECT position_group,
+               round(continuity_score, 1) AS continuity_score,
+               round(production_returning_pct, 3) AS production_returning,
+               round(usage_returning_pct, 3) AS usage_returning,
+               impact_additions, impact_losses,
+               depth_additions, depth_losses,
+               round(net_production_gained, 1) AS net_production,
+               round(talent_returning, 2) AS talent_returning,
+               round(talent_added, 2) AS talent_added,
+               round(talent_lost, 2) AS talent_lost,
+               round(net_talent_gained, 2) AS net_talent,
+               projected_starters_added, projected_starters_lost,
+               replacement_risk
+        FROM {catalog}.{gold_schema}.unit_continuity
+        WHERE season = {int(preview)} AND team = '{safe_team}'
+        ORDER BY continuity_score ASC
+        """
+    )
+    ledger = load_table(
+        f"""
+        SELECT *
+        FROM {catalog}.{gold_schema}.portal_team_ledger
+        WHERE season = {int(preview)} AND team = '{safe_team}'
+        """
+    )
+    dep = load_table(
+        f"""
+        SELECT *
+        FROM {catalog}.{gold_schema}.transfer_dependency
+        WHERE season = {int(preview)} AND team = '{safe_team}'
+        """
+    )
+    risks = load_table(
+        f"""
+        SELECT position_group, replacement_risk, metric_name,
+               round(departed_share, 3) AS departed_share,
+               round(best_returner_metric, 1) AS best_returner_metric,
+               callout
+        FROM {catalog}.{gold_schema}.replacement_risk
+        WHERE season = {int(preview)} AND team = '{safe_team}'
+        ORDER BY coalesce(departed_share, 0) DESC, continuity_score ASC
+        """
+    )
+    moves = load_table(
+        f"""
+        SELECT first_name, last_name, position_group, origin, destination,
+               impact_class, projected_starter,
+               round(prior_usage_overall, 3) AS prior_usage,
+               round(prior_production_score, 1) AS prior_production,
+               transfer_stars
+        FROM {catalog}.{gold_schema}.portal_moves
+        WHERE season = {int(preview)}
+          AND (origin = '{safe_team}' OR destination = '{safe_team}')
+        ORDER BY prior_production_score DESC NULLS LAST
+        """
+    )
+    qbs = load_table(
+        f"""
+        SELECT first_name, last_name, qb_class, room_class,
+               is_returning_starter, is_backup, is_transfer_addition,
+               prior_pass_att, career_pass_att,
+               round(career_avg_ppa_weighted, 3) AS career_avg_ppa,
+               round(avg_ppa_all, 3) AS avg_ppa,
+               round(turnover_rate, 3) AS turnover_rate,
+               career_rush_yds, transfer_count, last_transfer_origin,
+               stars, round(recruiting_rating, 4) AS recruiting_rating
+        FROM {catalog}.{gold_schema}.qb_room
+        WHERE season = {int(preview)} AND team = '{safe_team}'
+        ORDER BY qb_rank ASC
+        """
+    )
+
+    st.markdown(f"### {team}")
+    if not ret.empty:
+        row = ret.iloc[0]
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Offense returning", _fmt_pct(row.get("percent_offense_returning")))
+        m2.metric("Defense returning", _fmt_pct(row.get("percent_defense_returning")))
+        m3.metric("PPA returning", _fmt_pct(row.get("percent_ppa")))
+        m4.metric("Sacks returning", _fmt_pct(row.get("percent_sacks")))
+        m5.metric("Source", str(row.get("source") or "—"))
+
+    if not dep.empty:
+        d = dep.iloc[0]
+        st.markdown(
+            f"**Transfer dependency:** {_fmt_num(d.get('transfer_dependency_score'), 0)} / 100 "
+            f"· {_fmt_pct(d.get('pct_usage_from_transfers'))} of roster prior usage from transfers "
+            f"· {int(d.get('critical_units_on_transfers') or 0)} critical units on new arrivals"
+        )
+
+    if not ledger.empty:
+        led = ledger.iloc[0]
+        st.caption(
+            f"Portal ledger — impact +{int(led.get('impact_additions') or 0)} / "
+            f"-{int(led.get('impact_losses') or 0)}, "
+            f"depth +{int(led.get('depth_additions') or 0)} / "
+            f"-{int(led.get('depth_losses') or 0)}, "
+            f"net production {_fmt_num(led.get('net_production_gained'), 1)}, "
+            f"net talent {_fmt_num(led.get('net_talent_gained'), 2)}, "
+            f"projected starters +{int(led.get('projected_starters_added') or 0)} / "
+            f"-{int(led.get('projected_starters_lost') or 0)}"
+        )
+
+    st.markdown("#### Unit continuity")
+    st.dataframe(units, width="stretch")
+
+    if not risks.empty:
+        st.markdown("#### Replacement risk")
+        for _, risk_row in risks.iterrows():
+            st.write(f"• {risk_row['callout']}")
+
+    st.markdown("#### Portal moves")
+    st.dataframe(moves, width="stretch")
+
+    st.markdown("#### QB room")
+    if qbs.empty:
+        st.write("No quarterbacks on the constructed roster.")
+    else:
+        st.caption(f"Room class: **{qbs.iloc[0]['room_class']}**")
+        st.dataframe(qbs, width="stretch")
+
+
 def main():
     st.set_page_config(page_title="Saturday HQ", page_icon="🏈", layout="wide")
     st.title("Saturday HQ")
@@ -309,15 +594,16 @@ def main():
 
     st.sidebar.write("My Teams:", ", ".join(my_teams) if my_teams else "—")
 
-    tab_home, tab_slate, tab_matchup, tab_proj, tab_brief = st.tabs(
-        ["Home", "Slate", "Matchup", "Projections", "Brief"]
+    tab_home, tab_slate, tab_matchup, tab_proj, tab_brief, tab_preview = st.tabs(
+        ["Home", "Slate", "Matchup", "Projections", "Brief", "Preview"]
     )
 
     with tab_home:
         st.subheader("Welcome")
         st.write(
             "Use **Slate** for this week's model vs market view, **Matchup** for a deep dive, "
-            "**Projections** for win totals / playoff odds, and **Brief** for team writeups."
+            "**Projections** for win totals / playoff odds, **Brief** for team writeups, and "
+            "**Preview** for offseason roster / portal / QB continuity."
         )
         st.write(f"Active profile teams: {', '.join(my_teams)}")
 
@@ -434,6 +720,9 @@ def main():
             st.markdown(f"### {row['headline']}")
             st.write(row["summary"])
             st.write(briefs)
+
+    with tab_preview:
+        render_preview_tab(CATALOG, GOLD_SCHEMA, my_teams)
 
 
 if __name__ == "__main__":

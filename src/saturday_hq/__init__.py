@@ -7,6 +7,7 @@ from saturday_hq.config import (
     HISTORICAL_DOMAINS,
     INGEST_MODES,
     MARKET_DOMAINS,
+    PREVIEW_DOMAINS,
     RAW_CATALOG,
     SEASON_STATIC_DOMAINS,
     STATIC_DOMAINS,
@@ -17,6 +18,7 @@ from saturday_hq.config import (
     current_env,
     current_ingest_mode,
     in_season,
+    preview_season,
     season_types_for,
 )
 
@@ -27,6 +29,7 @@ __all__ = [
     "HISTORICAL_DOMAINS",
     "INGEST_MODES",
     "MARKET_DOMAINS",
+    "PREVIEW_DOMAINS",
     "RAW_CATALOG",
     "SEASON_STATIC_DOMAINS",
     "STATIC_DOMAINS",
@@ -37,5 +40,6 @@ __all__ = [
     "current_env",
     "current_ingest_mode",
     "in_season",
+    "preview_season",
     "season_types_for",
 ]

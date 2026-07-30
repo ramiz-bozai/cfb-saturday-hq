@@ -47,3 +47,27 @@ models:
 
   - name: bronze_team_season_stats
     description: CFBD /stats/season, long format. Landed for ad-hoc use only.
+
+  - name: bronze_rosters
+    description: CFBD /roster (one call per FBS team). Season tagged on ingest.
+
+  - name: bronze_player_portal
+    description: CFBD /player/portal transfer records for a portal season.
+
+  - name: bronze_player_returning
+    description: CFBD /player/returning team returning-production percentages.
+
+  - name: bronze_player_usage
+    description: CFBD /player/usage with usage struct flattened.
+
+  - name: bronze_player_season_stats
+    description: CFBD /stats/player/season long format (category + stat_type).
+
+  - name: bronze_ppa_players_season
+    description: CFBD /ppa/players/season with average/total PPA structs flattened.
+
+  - name: bronze_recruiting_players
+    description: CFBD /recruiting/players high-school class rankings.
+
+  - name: bronze_draft_picks
+    description: CFBD /draft/picks NFL draft results (collegeAthleteId links to rosters).
