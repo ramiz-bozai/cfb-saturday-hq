@@ -42,7 +42,6 @@ that scope and preserves every other season already stored.
 | Dev and prod isolation | Unity Catalog catalogs and schemas | Separates each environment's bronze, silver, gold, ML, and app objects |
 | Data transformation | Delta Lake, `read_files()`, and dbt | Builds tested bronze, silver, and gold tables from the shared raw files |
 | Scheduling and deployment | Workflows Jobs and Asset Bundles | Deploys and runs ingestion, dbt, training, simulations, and serving |
-| Credentials | Secret scopes and `dbutils.secrets` | Provides the CFBD API key without committing it |
 | Machine learning | MLflow and Models in Unity Catalog | Tracks experiments, registers the matchup model, and loads it for scoring |
 | Analytics | SQL Warehouses and AI/BI Genie | Supports dbt, SQL exploration, model audits, and natural-language questions |
 | Application | Databricks Apps | Serves matchups, model-versus-market comparisons, projections, and briefs |
@@ -101,6 +100,7 @@ corrected score or a rescheduled game land later. `WEEK` stays `None` on purpose
 1. Read `DECISIONS.md`
 2. Follow `docs/STEP_BY_STEP.md` in order
 3. Paste `docs/GENIE_INSTRUCTIONS.md` into your Genie space
+4. Review `docs/PRODUCT_IDEAS.md` for the fan-product roadmap
 
 ## What the stats mean
 `docs/DATA_DICTIONARY.md` covers every stat column: what it measures, which direction is good,
