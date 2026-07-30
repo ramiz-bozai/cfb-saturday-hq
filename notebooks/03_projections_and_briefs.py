@@ -13,7 +13,7 @@ from pathlib import Path
 REPO_PATH = ""
 ENV = ""  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
-N_SIMS = 2000
+N_SIMS = 1
 SEASON_TYPES = ("regular", "postseason")  # kept separate because their week numbers overlap
 WEEK = None  # None => every week in SEASON_TYPES; int => targeted repair/display
 
