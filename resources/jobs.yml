@@ -139,3 +139,33 @@ resources:
           job_cluster_key: main
           notebook_task:
             notebook_path: ../notebooks/03_projections_and_briefs.py
+
+    # Offseason Preview: player-level domains for the upcoming season. Safe to run in July.
+    saturday_hq_preview:
+      name: saturday-hq-preview-refresh-${var.env}
+      job_clusters:
+        - job_cluster_key: main
+          new_cluster:
+            spark_version: 15.4.x-scala2.12
+            node_type_id: i3.xlarge
+            num_workers: 2
+            spark_env_vars:
+              SATURDAY_HQ_ENV: ${var.env}
+              SATURDAY_HQ_INGEST_MODE: preview
+      tasks:
+        - task_key: preview_ingest
+          job_cluster_key: main
+          notebook_task:
+            notebook_path: ../notebooks/06_preview_ingest.py
+
+        - task_key: dbt_preview
+          depends_on:
+            - task_key: preview_ingest
+          job_cluster_key: main
+          dbt_task:
+            project_directory: ../dbt
+            commands:
+              - dbt build --target ${var.env} --select bronze_rosters+ bronze_player_portal+ bronze_player_returning+ bronze_player_usage+ bronze_player_season_stats+ bronze_ppa_players_season+ bronze_recruiting_players+
+          libraries:
+            - pypi:
+                package: dbt-databricks>=1.8.0,<2.0.0
