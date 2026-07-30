@@ -14,7 +14,7 @@ from pathlib import Path
 
 # Edit these constants if needed (no notebook widgets).
 REPO_PATH = ""
-ENV = ""  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
+ENV = "prod"  # blank => SATURDAY_HQ_ENV from the job cluster, else "dev"
 CURRENT_SEASON = None  # None => derived from today's date (August rollover)
 MODEL_NAME = ""  # blank => <catalog>.cfb_ml.matchup for this environment
 
