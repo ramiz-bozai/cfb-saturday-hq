@@ -13,7 +13,7 @@ with typed as (
         destination,
         transfer_date,
         transfer_rating,
-        transfer_stars,
+        cast(transfer_stars as int) as transfer_stars,
         eligibility,
         _source_path,
         _ingest_mode

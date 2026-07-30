@@ -1,4 +1,4 @@
-command: ["streamlit", "run", "app.py"]
+command: ["npm", "run", "start"]
 
 env:
   - name: DATABRICKS_WAREHOUSE_ID
@@ -9,5 +9,3 @@ env:
     value: cfb_gold
   - name: SATURDAY_HQ_APP_SCHEMA
     value: cfb_app
-  - name: STREAMLIT_GATHER_USAGE_STATS
-    value: "false"

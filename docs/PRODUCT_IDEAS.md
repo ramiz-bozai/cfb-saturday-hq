@@ -91,15 +91,16 @@ It produces:
 
 The simulator is a committee stand-in, not an official CFP model.
 
-## Why the App feels underwhelming now
+## Why the App still has room to grow
 
-- It presents columns instead of conclusions.
+Preview (offseason continuity) is now a real fan surface. Remaining gaps for in-season tabs:
+
+- Matchup still presents columns more than conclusions.
 - It does not explain why the model produced a probability.
-- It does not rank games by fan interest.
 - It does not show how a result changes playoff odds.
 - It has no persistent pregame prediction record.
-- It defaults to the date-derived 2025 season until August 2026, even though fans may already care
-  about the upcoming 2026 schedule.
+- It defaults to the date-derived completed season until August, even though fans may already care
+  about the upcoming schedule.
 - A completed season has no remaining uncertainty, making its projections deterministic.
 
 ## Phase 1: make existing data understandable
@@ -310,14 +311,19 @@ there is a model that can be honestly evaluated for that target.
 
 ## Offseason / upcoming-season preview
 
-**Status: in progress.** Preview tab and gold models are in the repo and built in prod for
-2026 (constructed rosters from 2025 + production weighting). CFBD has not published 2026
-rosters/returning yet. The 2026 portal pull was rate-limited during the initial sync — re-run
-`notebooks/06_preview_ingest.py` or `scripts/sync_preview_domains.py` later today, then
-`dbt build --select bronze_player_portal+`, so portal ledgers and transfer dependency light up.
+**Status: landed (analytics backbone + React fan UI).** Preview gold models are built in
+prod for 2026 (constructed rosters from 2025 + production weighting + NFL draft exits).
+The Databricks App is a **React + Express** SPA (Streamlit retired) with a polished
+Offseason Preview (overview + team) and functional ports of Home / Slate / Matchup /
+Projections / Brief.
 
-Current pipelines stop at team-season and team-week grains. Player-level CFBD domains are now
-wired in the client and dbt; land them before expecting Preview to populate.
+CFBD may still lack a published 2026 roster until near camp — Preview then constructs
+rosters from prior season − portal − draft + arrivals. Re-run
+`notebooks/06_preview_ingest.py` or `scripts/sync_preview_domains.py` when portal/roster
+data updates, then `dbt build --select bronze_player_portal+` (and related bronze+).
+
+Current pipelines stop at team-season and team-week grains for in-season tabs. Player-level
+CFBD domains power Preview.
 
 ### CFBD domains to add
 
@@ -421,33 +427,39 @@ Room classes:
 
 ### App surfaces
 
-**Preview tab — overview (all FBS):**
+The fan App lives under `app/` (Vite React client + Express API over Databricks SQL).
 
-- Returning production leaders / laggards
-- Highest transfer dependency
-- Highest replacement risk
-- Biggest portal winners / losers
+**Preview — overview (all FBS, conference filter):**
+
+- Thinnest returning production
+- Most transfer-dependent
+- Portal winners / losers
+- Hottest replacement-risk callouts
 - QB rooms by uncertainty class
 
-**Preview tab — team:**
+**Preview — team:**
 
+- Hero (room class + published/constructed badge)
 - Returning production dashboard (offense/defense + categories)
-- Unit continuity grades
-- Portal impact ledger
-- Transfer dependency score
-- Replacement-risk callouts
-- QB room
+- Transfer dependency + portal impact ledger
+- Unit continuity grade grid (worst first)
+- Replacement-risk alerts
+- Portal arrivals / departures (impact first)
+- QB room cards (Phase A fields only)
+
+**Also shipped (functional, on-theme):** Home demo profile, weekly Slate cards, Matchup,
+Projections, Brief.
 
 ### Build order (offseason track)
 
-1. **Ingest foundations** — CFBD client + domain tiers + historical/offseason pull for the seven
-   player domains; bronze + silver with athlete IDs and position-group mapping.
-2. **Returning production + unit continuity** — gold tables and Preview overview/team cards for
-   continuity (largest fan value for least custom logic).
-3. **Portal impact ledger** — usage-weighted adds/losses and net production.
-4. **Transfer dependency + replacement risk** — team scores and callouts.
-5. **QB room** — dedicated classification and team page section.
-6. **Polish** — sorting, conference filters, shareable team deep links.
+1. **Ingest foundations** — *(done)* CFBD client + domain tiers + historical/offseason pull;
+   bronze + silver with athlete IDs and position-group mapping; draft picks.
+2. **Returning production + unit continuity** — *(done)* gold + Preview overview/team UI.
+3. **Portal impact ledger** — *(done)* usage-weighted adds/losses and net production/talent.
+4. **Transfer dependency + replacement risk** — *(done)* team scores and callouts (portal + draft).
+5. **QB room** — *(done Phase A)* classification and team page section.
+6. **Polish** — *(partial)* conference filters and in-app team deep links landed; shareable
+   external deep links still optional.
 
 Do not ship an empty Preview tab backed by stubs. Ship after silver player data exists for at
 least the prior season and the upcoming roster/portal snapshot.
@@ -455,7 +467,7 @@ least the prior season and the upcoming roster/portal snapshot.
 ## Recommended order
 
 1. Weekly game cards and fan-oriented rankings *(done for cards)*
-2. **Offseason Preview track** (ingest → continuity → portal → dependency → QB room)
+2. **Offseason Preview track** *(analytics + React Preview UI landed)*
 3. Fix Week 1 preseason feature join (prior SP+/talent available before any games)
 4. Team page and better season defaults
 5. Per-game model contributions

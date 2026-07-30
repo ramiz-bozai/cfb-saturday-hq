@@ -11,7 +11,7 @@ FBS college football intelligence on Databricks using [CollegeFootballData](http
 - Matchup model that does **not** train on betting lines
 - UI compares **model vs market**
 - Preseason + Monte Carlo playoff projections using published **2026 CFP** structure
-- Dashboards, Genie, and a Streamlit Databricks App
+- Dashboards, Genie, and a React + Express Databricks App (Offseason Preview + slate/matchup)
 
 ## Who does what
 One handoff in each direction: `Python ingest → dbt build → Python score + serve`.
@@ -116,7 +116,7 @@ tables Python writes get theirs from `src/saturday_hq/table_docs.py`.
 ## Layout
 ```
 cfb-saturday-hq/
-  app/                 # Databricks App (Streamlit)
+  app/                 # Databricks App (React + Express)
   dbt/                 # dbt project: models, macros, and the committed profiles.yml
   docs/                # Step-by-step, Genie instructions, data dictionary
   notebooks/           # Python steps, 00 → 05; dbt runs between 01/02 and between 04/05

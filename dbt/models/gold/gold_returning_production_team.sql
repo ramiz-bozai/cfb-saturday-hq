@@ -6,14 +6,31 @@
     Prefer CFBD /player/returning when present for that season. Otherwise compute from the
     constructed roster snapshot vs prior-season team totals.
 
+    Restricted to FBS teams in silver_team_seasons (preview or prior season), matching
+    transfer_dependency / portal_team_ledger — otherwise FCS schools with no prior
+    production sort to the top of "thinnest returning" with all zeros.
+
     Offense returning = (pass_yds + rush_yds + rec_yds) returning / prior.
     Defense returning = weighted (tackles + 2*TFL + 3*sacks + 2*INT) returning / prior.
 */
 
-with cfbd as (
+with fbs as (
 
-    select *
-    from {{ ref('silver_player_returning') }}
+    select distinct season, team
+    from {{ ref('silver_team_seasons') }}
+
+),
+
+cfbd as (
+
+    select c.*
+    from {{ ref('silver_player_returning') }} as c
+    where exists (
+        select 1
+        from fbs
+        where fbs.team = c.team
+          and fbs.season in (c.season, c.season - 1)
+    )
 
 ),
 
@@ -66,6 +83,12 @@ returning_on_roster as (
         sum(case when not r.is_transfer_addition then coalesce(r.prior_interceptions, 0.0) else 0.0 end) as returning_interceptions,
         sum(case when not r.is_transfer_addition then coalesce(r.prior_kick_points, 0.0) else 0.0 end) as returning_kick_points
     from {{ ref('gold_roster_snapshot') }} as r
+    where exists (
+        select 1
+        from fbs
+        where fbs.team = r.team
+          and fbs.season in (r.season, r.season - 1)
+    )
     group by r.season, r.team
 
 ),

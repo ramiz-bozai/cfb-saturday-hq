@@ -531,21 +531,26 @@ a prod deployment can coexist in one workspace.
 
 ## Deploy the App
 
-App code: `app/app.py`
-App config: `app/app.yaml`
+App code: `app/` (React client under `app/client/`, Express API under `app/server/`)
+App config: `app/app.yaml` (Node: `npm run start`)
 
-1. Databricks → **Compute** → **Apps** → Create app
+1. Databricks → **Compute** → **Apps** → Create app (Node / custom)
 2. Add a **SQL warehouse** resource with key `sql-warehouse` and **Can use** permission.
    `app.yaml` maps that resource to `DATABRICKS_WAREHOUSE_ID`.
-3. Point the deployment at the `app/` folder. It contains its own `app.yaml` and minimal
-   `requirements.txt`; the repository-root dependency file is intentionally not deployed.
+3. Point the deployment at the `app/` folder. It contains its own `app.yaml` and
+   `package.json`; the repository-root Python `requirements.txt` is intentionally not
+   what the App installs.
 4. Grant the app identity `USE CATALOG`, `USE SCHEMA`, and `SELECT` on:
   - `cfb_saturday_hq_prod.cfb_gold.*`
   - `cfb_saturday_hq_prod.cfb_app.demo_profiles`
 5. `app.yaml` sets `SATURDAY_HQ_CATALOG=cfb_saturday_hq_prod`,
   `SATURDAY_HQ_GOLD_SCHEMA=cfb_gold`, and `SATURDAY_HQ_APP_SCHEMA=cfb_app`. The App serves
    prod; point the catalog at `cfb_saturday_hq_dev` in a second app if you want a dev preview.
-6. Deploy and start the app.
+6. Deploy and start the app. Locally: `cd app && npm install && npm run dev` with
+   `DATABRICKS_HOST`, `DATABRICKS_HTTP_PATH`, and `DATABRICKS_TOKEN` (or `DBT_ACCESS_TOKEN`)
+   in the repo `.env`.
+
+See also `docs/APP_DEPLOYMENT.md`.
 
 ## Offseason Preview ingest
 
@@ -613,7 +618,7 @@ Preview season defaults to the upcoming year before August (July 2026 → 2026).
 | Weekly ingest                     | `notebooks/04_weekly_ingest.py`                 | `ingest/download_historical.py` (`plan_domains`)                 |
 | Weekly score + serve              | `notebooks/05_weekly_score_and_serve.py`        | `ml/train.py`, `projections/simulator.py`, `briefs/generate.py`  |
 | dbt connection                    | `dbt/profiles.yml` (committed)                  | `.env.template` → `.env` for `DBT_ACCESS_TOKEN`                  |
-| App                               | `app/app.py`                                    | —                                                                |
+| App                               | `cd app && npm run start`                       | `app/server/`, `app/client/`                                     |
 | Genie                             | `docs/GENIE_INSTRUCTIONS.md`                    | —                                                                |
 
 

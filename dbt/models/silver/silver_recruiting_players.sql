@@ -15,7 +15,7 @@ with typed as (
         {{ position_group('position') }} as position_group,
         height,
         weight,
-        stars,
+        cast(stars as int) as stars,
         rating,
         city,
         state_province,
