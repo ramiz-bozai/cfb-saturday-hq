@@ -53,7 +53,10 @@ _SEASON_PROJECTIONS = {
         "published CFP automatic-qualifier structure, never an official forecast."
     ),
     "avg_seed_if_in": "Average seed in the simulations where the team qualified. Null if it never did.",
-    "n_sims": "Number of Monte Carlo simulations behind these numbers.",
+    "n_sims": (
+        "Actual simulation count behind these numbers. Finished seasons use one deterministic "
+        "pass even when the caller requested more."
+    ),
     "disclaimer": "Projection disclaimer carried alongside the numbers.",
 }
 

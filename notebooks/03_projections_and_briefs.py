@@ -47,6 +47,7 @@ proj = simulate_season(
     season=config.current_season,
     n_sims=N_SIMS,
     use_model_probs=True,
+    random_seed=RANDOM_SEED,
 )
 print(proj)
 display(

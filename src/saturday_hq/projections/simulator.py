@@ -97,11 +97,16 @@ def _win_prob_from_rating_diff(diff: float) -> float:
     return float(1.0 / (1.0 + np.exp(-1.1 * diff)))
 
 
+def _is_true(value) -> bool:
+    return bool(value) if pd.notna(value) else False
+
+
 def simulate_season(
     config: SaturdayHQConfig,
     season: Optional[int] = None,
     n_sims: int = 5000,
     use_model_probs: bool = True,
+    random_seed: Optional[int] = None,
 ) -> dict:
     """Monte Carlo remaining/full schedule; apply CFP AQ rules on simulated ranks."""
     if n_sims < 1:
@@ -117,6 +122,7 @@ def simulate_season(
         spark.table(config.silver("games"))
         .filter(F.col("season") == season)
         .filter(F.lower(F.col("season_type")) == "regular")
+        .orderBy("game_id")
         .toPandas()
     )
     ratings = (
@@ -140,140 +146,151 @@ def simulate_season(
     read_seconds = perf_counter() - read_started
 
     teams = sorted(set(games["home_team"]).union(set(games["away_team"])))
-    teams = [t for t in teams if t in ratings.index]
+    teams = [team for team in teams if team in ratings.index]
+    if not teams:
+        raise RuntimeError(f"No rated teams available to simulate season {season}")
+
     team_index = {t: i for i, t in enumerate(teams)}
     n_teams = len(teams)
-    win_counts = np.zeros((n_sims, n_teams), dtype=np.int16)
-    # Conference champion proxy: most wins within conference among conference games.
-    # Simplified: track conference wins.
-    conf_map = ratings["conference"].to_dict()
+    rating_values = ratings.loc[teams, "rating"].astype(float).to_numpy()
+    conferences = ratings.loc[teams, "conference"].fillna("").astype(str).to_numpy()
+    notre_dame = ratings.loc[teams, "is_notre_dame"].fillna(False).astype(bool).to_numpy()
+    conference_members = {
+        conference: np.flatnonzero(conferences == conference)
+        for conference in sorted(set(conferences))
+        if conference
+    }
 
     completed = games[games["completed"] == True]  # noqa: E712
     remaining = games[games["completed"] != True]  # noqa: E712
+
+    base_wins = np.zeros(n_teams, dtype=np.int16)
+    base_conf_wins = np.zeros(n_teams, dtype=np.int16)
+    for game in completed.itertuples(index=False):
+        if game.home_team not in team_index or game.away_team not in team_index:
+            continue
+        winner = game.home_team if _is_true(game.home_won) else game.away_team
+        winner_index = team_index[winner]
+        base_wins[winner_index] += 1
+        if _is_true(game.conference_game):
+            base_conf_wins[winner_index] += 1
+
+    prediction_map = (
+        preds["model_home_win_prob"].to_dict()
+        if preds is not None and "model_home_win_prob" in preds
+        else {}
+    )
+    remaining_home = []
+    remaining_away = []
+    remaining_conference = []
+    remaining_home_prob = []
+    for g in remaining.to_dict("records"):
+        home = g["home_team"]
+        away = g["away_team"]
+        if home not in team_index or away not in team_index:
+            continue
+        home_index = team_index[home]
+        away_index = team_index[away]
+        probability = prediction_map.get(g["game_id"])
+        if probability is None or not np.isfinite(float(probability)):
+            rating_diff = rating_values[home_index] - rating_values[away_index]
+            if not _is_true(g.get("neutral_site", False)):
+                rating_diff += 0.15
+            probability = _win_prob_from_rating_diff(float(rating_diff))
+        remaining_home.append(home_index)
+        remaining_away.append(away_index)
+        remaining_conference.append(_is_true(g.get("conference_game", False)))
+        remaining_home_prob.append(float(probability))
+
+    remaining_home = np.asarray(remaining_home, dtype=np.intp)
+    remaining_away = np.asarray(remaining_away, dtype=np.intp)
+    remaining_conference = np.asarray(remaining_conference, dtype=bool)
+    remaining_home_prob = np.asarray(remaining_home_prob, dtype=float)
+
+    effective_n_sims = 1 if remaining_home.size == 0 else n_sims
     print(
         f"Season simulation inputs: teams={n_teams} | regular games={len(games)} | "
         f"completed={len(completed)} | remaining={len(remaining)} | "
-        f"model probabilities={0 if preds is None else len(preds)} | read={read_seconds:.1f}s"
+        f"simulated remaining={remaining_home.size} | "
+        f"model probabilities={len(prediction_map)} | "
+        f"effective simulations={effective_n_sims} | read={read_seconds:.1f}s"
     )
-    if remaining.empty:
+    if remaining_home.size == 0:
         print(
-            "Season simulation note: no remaining regular-season games. Results are deterministic; "
-            "simulator optimization/automatic short-circuit is parked, so the requested loop still runs."
+            "Season simulation note: no rated remaining regular-season games. Results are "
+            f"deterministic; short-circuiting {n_sims} requested simulations to one pass."
         )
-
-    base_wins = np.zeros(n_teams, dtype=np.int16)
-    for _, g in completed.iterrows():
-        if g["home_team"] not in team_index or g["away_team"] not in team_index:
-            continue
-        if bool(g["home_won"]):
-            base_wins[team_index[g["home_team"]]] += 1
-        else:
-            base_wins[team_index[g["away_team"]]] += 1
-
-    rem_records = remaining.to_dict("records")
-    playoff_hits = {t: 0 for t in teams}
-    seed_sum = {t: 0.0 for t in teams}
-    seed_n = {t: 0 for t in teams}
 
     simulation_started = perf_counter()
-    progress_every = max(1, n_sims // 10)
-    for s in range(n_sims):
-        wins = base_wins.copy()
-        conf_wins = {t: 0 for t in teams}
-        # replay completed conference wins
-        for _, g in completed.iterrows():
-            if g["home_team"] not in team_index or g["away_team"] not in team_index:
-                continue
-            if not g.get("conference_game"):
-                continue
-            winner = g["home_team"] if g["home_won"] else g["away_team"]
-            if winner in conf_wins:
-                conf_wins[winner] += 1
+    win_counts = np.repeat(base_wins[None, :], effective_n_sims, axis=0)
+    conf_win_counts = np.repeat(base_conf_wins[None, :], effective_n_sims, axis=0)
+    if remaining_home.size:
+        rng = np.random.default_rng(random_seed)
+        home_wins = rng.random((effective_n_sims, remaining_home.size)) < remaining_home_prob
+        winner_indices = np.where(home_wins, remaining_home, remaining_away)
+        simulation_indices = np.arange(effective_n_sims)[:, None]
+        np.add.at(win_counts, (simulation_indices, winner_indices), 1)
+        conference_winners = winner_indices[:, remaining_conference]
+        if conference_winners.size:
+            np.add.at(conf_win_counts, (simulation_indices, conference_winners), 1)
 
-        for g in rem_records:
-            ht, at = g["home_team"], g["away_team"]
-            if ht not in team_index or at not in team_index:
-                continue
-            if preds is not None and g["game_id"] in preds.index:
-                p_home = float(preds.loc[g["game_id"], "model_home_win_prob"])
-            else:
-                diff = float(ratings.loc[ht, "rating"] - ratings.loc[at, "rating"])
-                if not g.get("neutral_site"):
-                    diff += 0.15  # small home edge in rating space
-                p_home = _win_prob_from_rating_diff(diff)
-            home_win = np.random.random() < p_home
-            if home_win:
-                wins[team_index[ht]] += 1
-                if g.get("conference_game"):
-                    conf_wins[ht] += 1
-            else:
-                wins[team_index[at]] += 1
-                if g.get("conference_game"):
-                    conf_wins[at] += 1
-        win_counts[s, :] = wins
+    playoff_hits = np.zeros(n_teams, dtype=np.int32)
+    seed_sum = np.zeros(n_teams, dtype=float)
+    seed_n = np.zeros(n_teams, dtype=np.int32)
 
-        # Build ranking for this sim from wins then preseason rating tiebreak
-        order = sorted(
-            teams,
-            key=lambda t: (wins[team_index[t]], ratings.loc[t, "rating"]),
-            reverse=True,
-        )
-        # Conference champions by conf wins then rating
-        champs = set()
-        by_conf = {}
-        for t in teams:
-            by_conf.setdefault(conf_map.get(t), []).append(t)
-        for conf, members in by_conf.items():
-            if not conf:
-                continue
-            champ = sorted(
-                members,
-                key=lambda t: (conf_wins.get(t, 0), ratings.loc[t, "rating"]),
-                reverse=True,
-            )[0]
-            champs.add(champ)
+    progress_every = max(1, effective_n_sims // 10)
+    for simulation_index in range(effective_n_sims):
+        wins = win_counts[simulation_index]
+        conference_wins = conf_win_counts[simulation_index]
+        order = np.lexsort((-rating_values, -wins))
+        champion_indices = set()
+        for members in conference_members.values():
+            member_order = np.lexsort((-rating_values[members], -conference_wins[members]))
+            champion_indices.add(int(members[member_order[0]]))
 
         seed_inputs = []
-        for rank, t in enumerate(order, start=1):
+        for rank, index in enumerate(order, start=1):
             seed_inputs.append(
                 TeamSeedInput(
-                    team=t,
+                    team=teams[index],
                     rank=rank,
-                    conference=str(conf_map.get(t) or ""),
-                    is_conference_champion=t in champs,
-                    is_notre_dame=bool(ratings.loc[t, "is_notre_dame"]),
+                    conference=conferences[index],
+                    is_conference_champion=int(index) in champion_indices,
+                    is_notre_dame=bool(notre_dame[index]),
                 )
             )
         field = select_playoff_field(seed_inputs)
         for bid in field:
-            if bid.team in playoff_hits:
-                playoff_hits[bid.team] += 1
-                seed_sum[bid.team] += bid.seed or 0
-                seed_n[bid.team] += 1
-        completed_sims = s + 1
-        if completed_sims == n_sims or completed_sims % progress_every == 0:
+            index = team_index.get(bid.team)
+            if index is not None:
+                playoff_hits[index] += 1
+                seed_sum[index] += bid.seed or 0
+                seed_n[index] += 1
+        completed_sims = simulation_index + 1
+        if completed_sims == effective_n_sims or completed_sims % progress_every == 0:
             print(
-                f"Season simulation progress: {completed_sims}/{n_sims} "
-                f"({100 * completed_sims / n_sims:.0f}%)"
+                f"Season simulation progress: {completed_sims}/{effective_n_sims} "
+                f"({100 * completed_sims / effective_n_sims:.0f}%)"
             )
     simulation_seconds = perf_counter() - simulation_started
 
     # Aggregate
     rows = []
-    for t in teams:
-        i = team_index[t]
+    for team, index in team_index.items():
         rows.append(
             {
                 "season": season,
-                "team": t,
-                "conference": conf_map.get(t),
-                "mean_wins": float(win_counts[:, i].mean()),
-                "median_wins": float(np.median(win_counts[:, i])),
-                "win_total_p10": float(np.percentile(win_counts[:, i], 10)),
-                "win_total_p90": float(np.percentile(win_counts[:, i], 90)),
-                "playoff_odds": playoff_hits[t] / n_sims,
-                "avg_seed_if_in": (seed_sum[t] / seed_n[t]) if seed_n[t] else None,
-                "n_sims": n_sims,
+                "team": team,
+                "conference": conferences[index],
+                "mean_wins": float(win_counts[:, index].mean()),
+                "median_wins": float(np.median(win_counts[:, index])),
+                "win_total_p10": float(np.percentile(win_counts[:, index], 10)),
+                "win_total_p90": float(np.percentile(win_counts[:, index], 90)),
+                "playoff_odds": playoff_hits[index] / effective_n_sims,
+                "avg_seed_if_in": (
+                    seed_sum[index] / seed_n[index] if seed_n[index] else None
+                ),
+                "n_sims": effective_n_sims,
                 "disclaimer": DISCLAIMER_CFP,
             }
         )

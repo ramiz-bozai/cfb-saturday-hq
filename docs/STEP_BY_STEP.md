@@ -362,7 +362,7 @@ view, so the probabilities you just wrote are already visible through it.
 
 ## Step 5 — Notebook `03_projections_and_briefs.py`
 
-Constants: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `N_SIMS`, `SEASON_TYPES`, `WEEK`
+Constants: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `N_SIMS`, `RANDOM_SEED`, `SEASON_TYPES`, `WEEK`
 
 Creates:
 
@@ -378,9 +378,10 @@ Each write replaces only the requested season/type (or week), preserving every o
 brief. The first run after the schema upgrade reconstructs all available history from
 `matchup_card`.
 
-The simulator prints input counts, 10% progress updates, and read/simulate/write timings. Its
-algorithmic optimization is parked in `DECISIONS.md`; use `N_SIMS = 1` only to debug or inspect a
-finished season, not to estimate in-season playoff probabilities.
+The simulator prints input counts, 10% progress updates, and read/simulate/write timings. It
+vectorizes remaining-game draws and reuses completed results. If no rated games remain, it
+automatically reduces `N_SIMS` to one deterministic pass. Keep `N_SIMS = 2000` for in-season
+uncertainty; `RANDOM_SEED = 42` makes identical inputs produce identical projections.
 
 CFP logic code: `src/saturday_hq/cfp_rules.py`
 Simulator: `src/saturday_hq/projections/simulator.py`
@@ -416,7 +417,8 @@ Constants in 04: `REPO_PATH`, `MODE`, `CURRENT_SEASON`, `WEEK`, `FORCE_OUT_OF_SE
 secrets. There is no `ENV` here — the ingest writes to the shared raw volume, so it is the
 same work no matter which environment consumes it.
 Constants in 05: `REPO_PATH`, `ENV`, `CURRENT_SEASON`, `MODEL_NAME`, `SEASON_TYPES`, `WEEK`,
-`N_SIMS`. `WEEK = None` refreshes all regular and postseason weeks while preserving prior seasons.
+`N_SIMS`, `RANDOM_SEED`. `WEEK = None` refreshes all regular and postseason weeks while preserving
+prior seasons.
 
 **Nothing in here needs editing between runs.** The season comes from today's date, the pull
 always targets that season, and dbt reads the newest drop automatically. Re-running the same
@@ -533,14 +535,19 @@ App code: `app/app.py`
 App config: `app/app.yaml`
 
 1. Databricks → **Compute** → **Apps** → Create app
-2. Point it at the `app/` folder
-3. Ensure the app identity can `SELECT` on:
+2. Add a **SQL warehouse** resource with key `sql-warehouse` and **Can use** permission.
+   `app.yaml` maps that resource to `DATABRICKS_WAREHOUSE_ID`.
+3. Point the deployment at the `app/` folder. It contains its own `app.yaml` and minimal
+   `requirements.txt`; the repository-root dependency file is intentionally not deployed.
+4. Grant the app identity `USE CATALOG`, `USE SCHEMA`, and `SELECT` on:
   - `cfb_saturday_hq_prod.cfb_gold.*`
   - `cfb_saturday_hq_prod.cfb_app.demo_profiles`
-4. `app.yaml` sets `SATURDAY_HQ_CATALOG=cfb_saturday_hq_prod`,
+5. `app.yaml` sets `SATURDAY_HQ_CATALOG=cfb_saturday_hq_prod`,
   `SATURDAY_HQ_GOLD_SCHEMA=cfb_gold`, and `SATURDAY_HQ_APP_SCHEMA=cfb_app`. The App serves
    prod; point the catalog at `cfb_saturday_hq_dev` in a second app if you want a dev preview.
-5. Start the app
+6. Deploy and start the app.
+
+The SQL privilege commands for step 4 are in `docs/APP_DEPLOYMENT.md`.
 
 Screens: Home, Slate (model vs market), Matchup, Projections, Brief.
 The season picker defaults to the same date-derived season the pipeline uses.
