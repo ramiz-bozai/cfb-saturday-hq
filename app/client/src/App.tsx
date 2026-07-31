@@ -1,8 +1,8 @@
-import { NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import PreviewOverview from "./pages/PreviewOverview";
-import PreviewTeam from "./pages/PreviewTeam";
+import SeasonPreviewOverview from "./pages/SeasonPreviewOverview";
+import SeasonPreviewTeam from "./pages/SeasonPreviewTeam";
 import SlatePage, { HomePage } from "./pages/Slate";
 import { BriefPage, MatchupPage, ProjectionsPage } from "./pages/Other";
 
@@ -18,7 +18,7 @@ function defaultSeason() {
 
 export default function App() {
   const location = useLocation();
-  const isPreview = location.pathname.startsWith("/preview");
+  const isSeasonPreview = location.pathname.startsWith("/season-preview");
   const [season, setSeason] = useState(defaultSeason());
   const [seasonType, setSeasonType] = useState("regular");
   const [week, setWeek] = useState(1);
@@ -66,15 +66,15 @@ export default function App() {
             Brief
           </NavLink>
           <NavLink
-            to="/preview"
+            to="/season-preview"
             className={({ isActive }) => (isActive ? "active" : undefined)}
           >
-            Preview
+            Season Preview
           </NavLink>
         </nav>
       </header>
 
-      {!isPreview && (
+      {!isSeasonPreview && (
         <div className="controls">
           <div className="field">
             <label>Season</label>
@@ -145,8 +145,13 @@ export default function App() {
             />
           }
         />
-        <Route path="/preview" element={<PreviewOverview />} />
-        <Route path="/preview/team" element={<PreviewTeam />} />
+        <Route path="/season-preview" element={<SeasonPreviewOverview />} />
+        <Route path="/season-preview/team" element={<SeasonPreviewTeam />} />
+        <Route path="/preview" element={<Navigate to="/season-preview" replace />} />
+        <Route
+          path="/preview/team"
+          element={<Navigate to={`/season-preview/team${location.search}`} replace />}
+        />
       </Routes>
 
       <footer className="disclaimer">

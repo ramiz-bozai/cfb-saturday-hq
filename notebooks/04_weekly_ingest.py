@@ -14,7 +14,7 @@
 # MAGIC | season-static | teams_fbs, talent, recruiting_teams | first in-season run of a season |
 # MAGIC | static | conferences | once ever, if absent from `incremental/` |
 # MAGIC | market | lines | the Friday run (`MODE = "market"`) |
-# MAGIC | preview | player domains (rosters, portal, usage, …) | Offseason Preview — use notebook 06 |
+# MAGIC | preview | player domains (rosters, portal, usage, …) | Season Preview — use notebook 06 |
 # MAGIC
 # MAGIC Three further savings: nothing is called outside the August→January window, the
 # MAGIC postseason endpoints are skipped until December (they have nothing to return before

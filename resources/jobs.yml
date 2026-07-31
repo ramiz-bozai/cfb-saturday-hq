@@ -140,7 +140,7 @@ resources:
           notebook_task:
             notebook_path: ../notebooks/03_projections_and_briefs.py
 
-    # Offseason Preview: player-level domains for the upcoming season. Safe to run in July.
+    # Season Preview: player-level domains for the upcoming season. Safe to run in July.
     saturday_hq_preview:
       name: saturday-hq-preview-refresh-${var.env}
       job_clusters:

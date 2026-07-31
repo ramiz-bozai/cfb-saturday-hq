@@ -1,9 +1,10 @@
 # Databricks notebook source
 # MAGIC %md
-# MAGIC # 06 — Offseason Preview ingest
+# MAGIC # 06 — Season Preview ingest
 # MAGIC
-# MAGIC Pulls player-level CFBD domains for the **upcoming preview season** and the prior
-# MAGIC completed season into `incremental/dt=YYYY-MM-DD/`.
+# MAGIC Pulls player-level CFBD domains for the **upcoming season** (Season Preview target)
+# MAGIC and the prior completed season's production/usage into `incremental/dt=YYYY-MM-DD/`
+# MAGIC so continuity models can weight returning players.
 # MAGIC
 # MAGIC Allowed outside the Aug–Jan window (unlike notebook 04's weekly/market modes).
 # MAGIC

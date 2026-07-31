@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download Offseason Preview CFBD domains locally and sync to the UC Volume.
+"""Download Season Preview CFBD domains locally and sync to the UC Volume.
 
 Usage (from repo root):
 

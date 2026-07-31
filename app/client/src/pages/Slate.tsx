@@ -165,7 +165,7 @@ export function HomePage({ myTeams, profiles, profile, setProfile }: {
       <p className="lede">
         Use <strong>Slate</strong> for model vs market, <strong>Matchup</strong> for a deep dive,{" "}
         <strong>Projections</strong> for win totals / playoff odds, <strong>Brief</strong> for
-        writeups, and <strong>Preview</strong> for offseason roster continuity.
+        writeups, and <strong>Season Preview</strong> for roster continuity heading into the year.
       </p>
       <div className="controls">
         <div className="field">

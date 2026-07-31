@@ -195,7 +195,10 @@ def simulate_season(
         if probability is None or not np.isfinite(float(probability)):
             rating_diff = rating_values[home_index] - rating_values[away_index]
             if not _is_true(g.get("neutral_site", False)):
-                rating_diff += 0.15
+                # ~0.30 on the z-score composite ≈ 58% home when ratings are equal
+                # (historical FBS home win rates ~57–60%). Fallback only — trained model
+                # uses its own neutral_site feature when model_home_win_prob exists.
+                rating_diff += 0.30
             probability = _win_prob_from_rating_diff(float(rating_diff))
         remaining_home.append(home_index)
         remaining_away.append(away_index)

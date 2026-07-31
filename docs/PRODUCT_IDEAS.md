@@ -93,7 +93,7 @@ The simulator is a committee stand-in, not an official CFP model.
 
 ## Why the App still has room to grow
 
-Preview (offseason continuity) is now a real fan surface. Remaining gaps for in-season tabs:
+Season Preview (roster continuity) is now a real fan surface. Remaining gaps for in-season tabs:
 
 - Matchup still presents columns more than conclusions.
 - It does not explain why the model produced a probability.
@@ -309,21 +309,21 @@ there is a model that can be honestly evaluated for that target.
 - A team page explains current quality, trajectory, schedule, and stakes without requiring the data
   dictionary.
 
-## Offseason / upcoming-season preview
+## Season Preview
 
-**Status: landed (analytics backbone + React fan UI).** Preview gold models are built in
+**Status: landed (analytics backbone + React fan UI).** Season Preview gold models are built in
 prod for 2026 (constructed rosters from 2025 + production weighting + NFL draft exits).
 The Databricks App is a **React + Express** SPA (Streamlit retired) with a polished
-Offseason Preview (overview + team) and functional ports of Home / Slate / Matchup /
+Season Preview (overview + team) and functional ports of Home / Slate / Matchup /
 Projections / Brief.
 
-CFBD may still lack a published 2026 roster until near camp — Preview then constructs
+CFBD may still lack a published 2026 roster until near camp — Season Preview then constructs
 rosters from prior season − portal − draft + arrivals. Re-run
 `notebooks/06_preview_ingest.py` or `scripts/sync_preview_domains.py` when portal/roster
 data updates, then `dbt build --select bronze_player_portal+` (and related bronze+).
 
 Current pipelines stop at team-season and team-week grains for in-season tabs. Player-level
-CFBD domains power Preview.
+CFBD domains power Season Preview.
 
 ### CFBD domains to add
 
@@ -359,7 +359,7 @@ year. Player stats/usage/overview are historical backfills through the prior com
 5. `unit_continuity` — grade inputs per team × position group × season.
 6. `transfer_dependency` — team-level dependency score and components.
 7. `qb_room` — classified QB room for each team-season.
-8. Serving views / `matchup`-style cards for the Preview tab (overview + team detail).
+8. Serving views / `matchup`-style cards for the Season Preview tab (overview + team detail).
 
 ### Unit continuity grades
 
@@ -429,7 +429,7 @@ Room classes:
 
 The fan App lives under `app/` (Vite React client + Express API over Databricks SQL).
 
-**Preview — overview (all FBS, conference filter):**
+**Season Preview — overview (all FBS, conference filter):**
 
 - Thinnest returning production
 - Most transfer-dependent
@@ -437,7 +437,7 @@ The fan App lives under `app/` (Vite React client + Express API over Databricks 
 - Hottest replacement-risk callouts
 - QB rooms by uncertainty class
 
-**Preview — team:**
+**Season Preview — team:**
 
 - Hero (room class + published/constructed badge)
 - Returning production dashboard (offense/defense + categories)
@@ -454,20 +454,20 @@ Projections, Brief.
 
 1. **Ingest foundations** — *(done)* CFBD client + domain tiers + historical/offseason pull;
    bronze + silver with athlete IDs and position-group mapping; draft picks.
-2. **Returning production + unit continuity** — *(done)* gold + Preview overview/team UI.
+2. **Returning production + unit continuity** — *(done)* gold + Season Preview overview/team UI.
 3. **Portal impact ledger** — *(done)* usage-weighted adds/losses and net production/talent.
 4. **Transfer dependency + replacement risk** — *(done)* team scores and callouts (portal + draft).
 5. **QB room** — *(done Phase A)* classification and team page section.
 6. **Polish** — *(partial)* conference filters and in-app team deep links landed; shareable
    external deep links still optional.
 
-Do not ship an empty Preview tab backed by stubs. Ship after silver player data exists for at
+Do not ship an empty Season Preview tab backed by stubs. Ship after silver player data exists for at
 least the prior season and the upcoming roster/portal snapshot.
 
 ## Recommended order
 
 1. Weekly game cards and fan-oriented rankings *(done for cards)*
-2. **Offseason Preview track** *(analytics + React Preview UI landed)*
+2. **Season Preview track** *(analytics + React Season Preview UI landed)*
 3. Fix Week 1 preseason feature join (prior SP+/talent available before any games)
 4. Team page and better season defaults
 5. Per-game model contributions

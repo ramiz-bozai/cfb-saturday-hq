@@ -2,12 +2,13 @@
 
 /*
     One row per athlete-season-team: usage, PPA, key box stats, recruiting profile.
-    Grain for Offseason Preview production weighting.
+    Grain for Season Preview production weighting.
 
     usage_overall:
       - Offense: CFBD /player/usage play share (when present).
       - DL/LB/DB: share of that team's tackle-weighted defense production
-        (tackles + 2*TFL + 3*sacks + 2*INT). Not snap share — CFBD has none.
+        (tackles + 2*(TFL − sacks) + 3*sacks + 2*INT). Not snap share — CFBD has none.
+        TFL includes sacks in CFBD; non-sack TFLs and sacks are weighted separately.
       - OL/ST: null (no usable proxy in this data).
 */
 
