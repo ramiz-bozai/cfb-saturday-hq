@@ -204,3 +204,15 @@ models:
         description: >
           model_home_win_prob minus the de-vigged market probability. A disagreement, not an
           edge. Null when the game has no two-way moneyline.
+
+  - name: mv_season_preview_team
+    description: >
+      Databricks metric view for Season Preview team KPIs (Genie). Joins returning_production_team,
+      transfer_dependency, and portal_team_ledger. Query with MEASURE(metric_name) and GROUP BY
+      season/team/conference. FBS teams with a known conference only.
+
+  - name: mv_unit_continuity
+    description: >
+      Databricks metric view for Season Preview unit continuity (Genie). Grain is team x
+      position_group x season. Joins returning_production_team for conference and replacement_risk
+      for departed_share when a callout exists.
