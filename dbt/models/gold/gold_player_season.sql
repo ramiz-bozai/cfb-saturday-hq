@@ -3,6 +3,12 @@
 /*
     One row per athlete-season-team: usage, PPA, key box stats, recruiting profile.
     Grain for Offseason Preview production weighting.
+
+    usage_overall:
+      - Offense: CFBD /player/usage play share (when present).
+      - DL/LB/DB: share of that team's tackle-weighted defense production
+        (tackles + 2*TFL + 3*sacks + 2*INT). Not snap share — CFBD has none.
+      - OL/ST: null (no usable proxy in this data).
 */
 
 with stats_wide as (
@@ -40,7 +46,7 @@ recruiting as (
 
     select
         athlete_id,
-        max(stars) as stars,
+        cast(max(stars) as int) as stars,
         max(rating) as recruiting_rating,
         min(recruiting_rank) as recruiting_rank,
         max_by(committed_to, class_year) as recruiting_committed_to,
@@ -61,7 +67,7 @@ base as (
         coalesce(u.position_group, p.position_group, s.position_group) as position_group,
         coalesce(u.team, p.team, s.team) as team,
         coalesce(u.conference, p.conference) as conference,
-        u.usage_overall,
+        u.usage_overall as cfbd_usage_overall,
         u.usage_pass,
         u.usage_rush,
         p.avg_ppa_all,
@@ -98,59 +104,103 @@ base as (
        and s.athlete_id = coalesce(u.athlete_id, p.athlete_id)
        and s.team = coalesce(u.team, p.team)
 
+),
+
+enriched as (
+
+    select
+        b.*,
+        coalesce(b.position, rost.position) as position_final,
+        coalesce(b.position_group, rost.position_group) as position_group_final,
+        case
+            when coalesce(b.position_group, rost.position_group) in ('DL', 'LB', 'DB')
+            then {{ defense_production_score('b.tackles', 'b.tfl', 'b.sacks', 'b.interceptions') }}
+            else 0.0
+        end as defense_prod,
+        r.stars,
+        r.recruiting_rating,
+        r.recruiting_rank,
+        r.recruiting_committed_to,
+        r.recruiting_class_year
+    from base as b
+    left join recruiting as r
+        on r.athlete_id = b.athlete_id
+    left join {{ ref('silver_rosters') }} as rost
+        on rost.season = b.season
+       and rost.athlete_id = b.athlete_id
+       and rost.team = b.team
+    where b.season is not null
+      and b.athlete_id is not null
+      and b.team is not null
+
+),
+
+with_team_def as (
+
+    select
+        e.*,
+        sum(e.defense_prod) over (partition by e.season, e.team) as team_defense_prod
+    from enriched as e
+
 )
 
 select
-    b.season,
-    b.athlete_id,
-    b.player_name,
-    coalesce(b.position, rost.position) as position,
-    coalesce(b.position_group, rost.position_group) as position_group,
-    b.team,
-    b.conference,
-    b.usage_overall,
-    b.usage_pass,
-    b.usage_rush,
-    b.avg_ppa_all,
-    b.avg_ppa_pass,
-    b.avg_ppa_rush,
-    b.total_ppa_all,
-    b.total_ppa_pass,
-    b.total_ppa_rush,
-    b.pass_att,
-    b.pass_yds,
-    b.pass_td,
-    b.pass_int,
-    b.rush_att,
-    b.rush_yds,
-    b.rush_td,
-    b.receptions,
-    b.rec_yds,
-    b.rec_td,
-    b.tackles,
-    b.tfl,
-    b.sacks,
-    b.interceptions,
-    b.fg_made,
-    b.fg_att,
-    b.kick_points,
-    b.fumbles_lost,
-    r.stars,
-    r.recruiting_rating,
-    r.recruiting_rank,
-    r.recruiting_committed_to,
-    r.recruiting_class_year,
-    -- Single production score for transfer weighting: total PPA when present, else usage.
-    coalesce(b.total_ppa_all, b.usage_overall * 50.0, 0.0) as production_score,
-    -- 0-1 talent score for portal net-talent ledgers (rating preferred, else stars/5).
-    coalesce(r.recruiting_rating, cast(r.stars as double) / 5.0) as talent_score
-from base as b
-left join recruiting as r
-    on r.athlete_id = b.athlete_id
-left join {{ ref('silver_rosters') }} as rost
-    on rost.season = b.season
-   and rost.athlete_id = b.athlete_id
-   and rost.team = b.team
-where b.season is not null
-  and b.athlete_id is not null
-  and b.team is not null
+    season,
+    athlete_id,
+    player_name,
+    position_final as position,
+    position_group_final as position_group,
+    team,
+    conference,
+    -- CFBD offensive usage when present; else DL/LB/DB share of team defense production.
+    coalesce(
+        cfbd_usage_overall,
+        case
+            when position_group_final in ('DL', 'LB', 'DB')
+             and team_defense_prod > 0
+            then defense_prod / team_defense_prod
+        end
+    ) as usage_overall,
+    usage_pass,
+    usage_rush,
+    avg_ppa_all,
+    avg_ppa_pass,
+    avg_ppa_rush,
+    total_ppa_all,
+    total_ppa_pass,
+    total_ppa_rush,
+    cast(round(pass_att) as int) as pass_att,
+    cast(round(pass_yds) as int) as pass_yds,
+    cast(round(pass_td) as int) as pass_td,
+    cast(round(pass_int) as int) as pass_int,
+    cast(round(rush_att) as int) as rush_att,
+    cast(round(rush_yds) as int) as rush_yds,
+    cast(round(rush_td) as int) as rush_td,
+    cast(round(receptions) as int) as receptions,
+    cast(round(rec_yds) as int) as rec_yds,
+    cast(round(rec_td) as int) as rec_td,
+    cast(round(tackles) as int) as tackles,
+    tfl,
+    sacks,
+    cast(round(interceptions) as int) as interceptions,
+    cast(round(fg_made) as int) as fg_made,
+    cast(round(fg_att) as int) as fg_att,
+    cast(round(kick_points) as int) as kick_points,
+    cast(round(fumbles_lost) as int) as fumbles_lost,
+    cast(stars as int) as stars,
+    recruiting_rating,
+    recruiting_rank,
+    recruiting_committed_to,
+    recruiting_class_year,
+    -- Production: offense PPA (else CFBD usage×50); defense absolute tackle-weighted score.
+    -- Do not use synthetic defensive usage×50 here — that would crush real tackle scores.
+    coalesce(
+        total_ppa_all,
+        cfbd_usage_overall * 50.0,
+        case
+            when position_group_final in ('DL', 'LB', 'DB') then defense_prod
+        end,
+        0.0
+    ) as production_score,
+    coalesce(recruiting_rating, cast(stars as double) / 5.0) as talent_score
+from with_team_def

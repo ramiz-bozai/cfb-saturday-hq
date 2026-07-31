@@ -278,7 +278,12 @@ select
             when best_returner is not null
             then concat(
                 '; best returner ', best_returner,
-                ' had ', cast(round(best_returner_metric, 1) as string),
+                ' had ',
+                case
+                    when metric_name in ('sacks', 'tfl')
+                    then cast(round(best_returner_metric, 1) as string)
+                    else cast(cast(round(best_returner_metric, 0) as bigint) as string)
+                end,
                 case metric_name
                     when 'pass_att' then ' attempts'
                     when 'rec_yds' then ' rec yds'

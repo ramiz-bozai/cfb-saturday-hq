@@ -5,8 +5,8 @@
 
     Talent fields:
       recruiting_talent_returning — avg talent_score of non-transfer roster players
-      recruiting_talent_added / recruiting_talent_lost — sum talent_score of portal gains/losses
-      talent_returning / talent_added / talent_lost — same grain, first-class aliases
+      talent_added / talent_lost — avg talent_score of portal (and draft) gains/losses
+      net_talent_gained — average talent delta: avg(in) − avg(out), not a headcount sum
 */
 
 with roster as (
@@ -71,7 +71,7 @@ portal_losses as (
         sum(case when impact_class = 'depth' then 1 else 0 end) as depth_losses,
         sum(prior_production_score) as departed_production,
         sum(case when projected_starter then 1 else 0 end) as projected_starters_lost,
-        sum(coalesce(talent_score, 0.0)) as talent_lost
+        avg(talent_score) as talent_lost
     from (
         select
             season,
@@ -99,8 +99,9 @@ portal_losses as (
                 else 'depth'
             end as impact_class,
             coalesce(ps.production_score, 0.0) as prior_production_score,
-            coalesce(ps.usage_overall, 0.0) >= 0.25 as projected_starter,
-            coalesce(ps.talent_score, 0.0) as talent_score
+            coalesce(ps.usage_overall, 0.0) >= 0.25
+                or coalesce(ps.production_score, 0.0) >= 40.0 as projected_starter,
+            ps.talent_score as talent_score
         from {{ ref('silver_draft_picks') }} as d
         left join {{ ref('gold_player_season') }} as ps
             on ps.athlete_id = d.athlete_id
@@ -130,7 +131,7 @@ portal_gains as (
         sum(prior_production_score) as added_production,
         sum(case when projected_starter then 1 else 0 end) as projected_starters_added,
         avg(transfer_stars) as avg_transfer_stars,
-        sum(coalesce(talent_score, 0.0)) as talent_added
+        avg(talent_score) as talent_added
     from {{ ref('gold_portal_moves') }}
     where destination is not null
     group by season, destination, position_group
@@ -154,6 +155,8 @@ select
     case
         when coalesce(pg.usage_overall, 0) > 0.05
         then r.returning_usage / nullif(pg.usage_overall, 0)
+        when coalesce(pg.production_score, 0) > 1
+        then r.returning_production / nullif(pg.production_score, 0)
         else coalesce(
             coalesce(r.returning_players, 0)
                 / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
@@ -170,27 +173,36 @@ select
     coalesce(pl.depth_losses, 0) as depth_losses,
     coalesce(pgain.added_production, 0) - coalesce(pl.departed_production, 0) as net_production_gained,
     coalesce(r.talent_returning, 0.0) as talent_returning,
-    coalesce(pgain.talent_added, 0.0) as talent_added,
-    coalesce(pl.talent_lost, 0.0) as talent_lost,
-    coalesce(pgain.talent_added, 0.0) - coalesce(pl.talent_lost, 0.0) as net_talent_gained,
+    pgain.talent_added as talent_added,
+    pl.talent_lost as talent_lost,
+    -- Average talent quality in minus average talent quality out (0–1 scale).
+    case
+        when pgain.talent_added is null and pl.talent_lost is null then null
+        else coalesce(pgain.talent_added, 0.0) - coalesce(pl.talent_lost, 0.0)
+    end as net_talent_gained,
     coalesce(r.returning_avg_talent, 0.0) as recruiting_talent_returning,
-    coalesce(pgain.talent_added, 0.0) as recruiting_talent_added,
-    coalesce(pl.talent_lost, 0.0) as recruiting_talent_lost,
+    pgain.talent_added as recruiting_talent_added,
+    pl.talent_lost as recruiting_talent_lost,
     coalesce(pgain.avg_transfer_stars, 0) - coalesce(r.returning_avg_stars, 0) as net_talent_proxy,
     coalesce(pgain.projected_starters_added, 0) as projected_starters_added,
     coalesce(pl.projected_starters_lost, 0) as projected_starters_lost,
-    -- Continuity score 0-100. Prefer usage/production when prior skill-position usage
-    -- exists; otherwise fall back to returning headcount share (OL/ST often lack usage).
+    -- Continuity score 0-100. Prefer usage+production when both exist; production alone
+    -- for DL/LB/DB (no CFBD usage); else returning headcount share (OL/ST).
     least(
         100.0,
         greatest(
             0.0,
             case
-                when coalesce(pg.usage_overall, 0) > 0.05 or coalesce(pg.production_score, 0) > 1
+                when coalesce(pg.usage_overall, 0) > 0.05
+                 and coalesce(pg.production_score, 0) > 1
                 then 100.0 * (
                     0.6 * coalesce(r.returning_usage / nullif(pg.usage_overall, 0), 0.0)
                     + 0.4 * coalesce(r.returning_production / nullif(pg.production_score, 0), 0.0)
                 )
+                when coalesce(pg.usage_overall, 0) > 0.05
+                then 100.0 * coalesce(r.returning_usage / nullif(pg.usage_overall, 0), 0.0)
+                when coalesce(pg.production_score, 0) > 1
+                then 100.0 * coalesce(r.returning_production / nullif(pg.production_score, 0), 0.0)
                 else 100.0 * (
                     coalesce(r.returning_players, 0)
                     / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0)

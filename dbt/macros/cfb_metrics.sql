@@ -78,3 +78,20 @@
         else 'Other'
     end
 {%- endmacro %}
+
+
+{#
+    Defensive contribution score when CFBD usage/PPA are missing (DL/LB/DB).
+    Same weights as gold_returning_production_team defense_returning:
+      tackles + 2*TFL + 3*sacks + 2*INT
+    Rough index (same impact gate as offense production >= 15):
+      ~15 rotational / impact floor, ~40–80 solid starter, 100+ elite season.
+#}
+{% macro defense_production_score(tackles_col, tfl_col, sacks_col, int_col) -%}
+    (
+        coalesce({{ tackles_col }}, 0.0)
+        + 2.0 * coalesce({{ tfl_col }}, 0.0)
+        + 3.0 * coalesce({{ sacks_col }}, 0.0)
+        + 2.0 * coalesce({{ int_col }}, 0.0)
+    )
+{%- endmacro %}

@@ -9,6 +9,12 @@ macro-paths: ["macros"]
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
 
+# Elementary needs these so its package can override test materializations and
+# upload artifacts via on-run-end hooks (dbt >= 1.8).
+flags:
+  require_explicit_package_overrides_for_builtin_materializations: false
+  source_freshness_run_project_hooks: true
+
 vars:
   # Root of the Unity Catalog Volume that notebook 01 writes CFBD JSONL into. Deliberately
   # NOT inside an environment catalog: dev and prod build their own bronze/silver/gold from
@@ -22,6 +28,9 @@ vars:
   include_incremental: true
 
 models:
+  elementary:
+    # Lands in <catalog>.elementary (generate_schema_name uses custom schema as-is).
+    +schema: "elementary"
   cfb_saturday_hq:
     +materialized: table
     +file_format: delta

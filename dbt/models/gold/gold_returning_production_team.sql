@@ -6,14 +6,31 @@
     Prefer CFBD /player/returning when present for that season. Otherwise compute from the
     constructed roster snapshot vs prior-season team totals.
 
+    Restricted to FBS teams in silver_team_seasons (preview or prior season), matching
+    transfer_dependency / portal_team_ledger — otherwise FCS schools with no prior
+    production sort to the top of "thinnest returning" with all zeros.
+
     Offense returning = (pass_yds + rush_yds + rec_yds) returning / prior.
     Defense returning = weighted (tackles + 2*TFL + 3*sacks + 2*INT) returning / prior.
 */
 
-with cfbd as (
+with fbs as (
 
-    select *
-    from {{ ref('silver_player_returning') }}
+    select distinct season, team
+    from {{ ref('silver_team_seasons') }}
+
+),
+
+cfbd as (
+
+    select c.*
+    from {{ ref('silver_player_returning') }} as c
+    where exists (
+        select 1
+        from fbs
+        where fbs.team = c.team
+          and fbs.season in (c.season, c.season - 1)
+    )
 
 ),
 
@@ -38,10 +55,7 @@ prior_team_totals as (
         sum(coalesce(kick_points, 0.0)) as kick_points,
         sum(coalesce(pass_yds, 0.0) + coalesce(rush_yds, 0.0) + coalesce(rec_yds, 0.0)) as offense_yards,
         sum(
-            coalesce(tackles, 0.0)
-            + 2.0 * coalesce(tfl, 0.0)
-            + 3.0 * coalesce(sacks, 0.0)
-            + 2.0 * coalesce(interceptions, 0.0)
+            {{ defense_production_score('tackles', 'tfl', 'sacks', 'interceptions') }}
         ) as defense_weighted
     from {{ ref('gold_player_season') }}
     group by season, team
@@ -66,6 +80,12 @@ returning_on_roster as (
         sum(case when not r.is_transfer_addition then coalesce(r.prior_interceptions, 0.0) else 0.0 end) as returning_interceptions,
         sum(case when not r.is_transfer_addition then coalesce(r.prior_kick_points, 0.0) else 0.0 end) as returning_kick_points
     from {{ ref('gold_roster_snapshot') }} as r
+    where exists (
+        select 1
+        from fbs
+        where fbs.team = r.team
+          and fbs.season in (r.season, r.season - 1)
+    )
     group by r.season, r.team
 
 ),
@@ -92,10 +112,12 @@ computed as (
             ret.returning_pass_yds + ret.returning_rush_yds + ret.returning_rec_yds
         ) / nullif(pt.offense_yards, 0) as percent_offense_returning,
         (
-            ret.returning_tackles
-            + 2.0 * ret.returning_tfl
-            + 3.0 * ret.returning_sacks
-            + 2.0 * ret.returning_interceptions
+            {{ defense_production_score(
+                'ret.returning_tackles',
+                'ret.returning_tfl',
+                'ret.returning_sacks',
+                'ret.returning_interceptions'
+            ) }}
         ) / nullif(pt.defense_weighted, 0) as percent_defense_returning,
         ret.returning_production,
         ret.returning_usage,

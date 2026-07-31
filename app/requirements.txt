@@ -1,4 +1,2 @@
-databricks-sdk
-databricks-sql-connector
-pandas
-streamlit
+# Streamlit app retired — Saturday HQ is now a React + Express Databricks App.
+# See app/package.json and app/app.yaml.
