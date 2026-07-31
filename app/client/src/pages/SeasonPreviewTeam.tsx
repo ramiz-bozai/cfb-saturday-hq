@@ -21,6 +21,8 @@ import {
   unitLabel,
 } from "../labels";
 import { Metric, Pill } from "../components/ui";
+import TeamGenieBrief from "../components/TeamGenieBrief";
+import AskGenieChat from "../components/AskGenieChat";
 import { SOURCE } from "../sourceTips";
 
 type TeamData = {
@@ -229,6 +231,8 @@ export default function SeasonPreviewTeam() {
               {data.rosterSource === "published" ? "Published roster" : "Constructed roster"}
             </Pill>
           </div>
+
+          <TeamGenieBrief team={data.team} season={data.season} />
 
           <div className="compare-callout" role="note">
             <strong>How to compare production</strong>
@@ -667,6 +671,8 @@ export default function SeasonPreviewTeam() {
               {data.qbs.length === 0 && <div className="empty">No quarterbacks on the roster snapshot.</div>}
             </div>
           </section>
+
+          <AskGenieChat team={data.team} season={data.season} />
         </>
       )}
     </div>

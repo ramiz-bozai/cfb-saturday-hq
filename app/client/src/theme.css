@@ -847,6 +847,99 @@ input {
   gap: 0.45rem;
 }
 
+.genie-brief {
+  margin: 0 0 1.25rem;
+}
+
+.genie-brief-label {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+
+.genie-brief-text {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.genie-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.genie-chat-log {
+  display: grid;
+  gap: 0.65rem;
+  max-height: 28rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.genie-bubble p {
+  margin: 0.25rem 0 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.genie-bubble-role {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.genie-bubble.user {
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--trust);
+  background: rgba(31, 78, 121, 0.06);
+  border-radius: 0 8px 8px 0;
+}
+
+.genie-bubble.assistant {
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid var(--pitch);
+  background: rgba(11, 61, 46, 0.06);
+  border-radius: 0 8px 8px 0;
+}
+
+.genie-chat-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.genie-chat-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.genie-chat-form button {
+  padding: 0.6rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--pitch);
+  color: var(--chalk);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.genie-chat-form button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 @media (max-width: 800px) {
   .split {
     grid-template-columns: 1fr;

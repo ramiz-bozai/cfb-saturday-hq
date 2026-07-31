@@ -49,3 +49,6 @@ models:
     gold:
       +schema: cfb_gold
       +tags: ["gold"]
+    app:
+      +schema: cfb_app
+      +tags: ["app"]

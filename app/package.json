@@ -7,7 +7,8 @@
     "dev": "concurrently -k \"node --watch server/index.js\" \"vite --config client/vite.config.js\"",
     "build": "vite build --config client/vite.config.js",
     "start": "node server/index.js",
-    "prestart": "npm run build"
+    "prestart": "npm run build",
+    "warm:genie-briefs": "node scripts/warm_genie_briefs.js"
   },
   "dependencies": {
     "@databricks/sql": "^1.11.0",

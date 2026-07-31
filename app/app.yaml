@@ -9,3 +9,5 @@ env:
     value: cfb_gold
   - name: SATURDAY_HQ_APP_SCHEMA
     value: cfb_app
+  - name: GENIE_SPACE_ID
+    value: "01f18c7f92fa18cbbdb18f2248cbec37"

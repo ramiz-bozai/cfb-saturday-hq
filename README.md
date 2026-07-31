@@ -99,7 +99,7 @@ corrected score or a rescheduled game land later. `WEEK` stays `None` on purpose
 ## Start here
 1. Read `DECISIONS.md`
 2. Follow `docs/STEP_BY_STEP.md` in order
-3. Paste `docs/GENIE_INSTRUCTIONS.md` into your Genie space
+3. Season Preview Genie is embedded in the app (`GENIE_SPACE_ID`); warm briefs with `node app/scripts/warm_genie_briefs.js`
 4. Review `docs/PRODUCT_IDEAS.md` for the fan-product roadmap
 
 ## What the stats mean
@@ -119,7 +119,7 @@ tables Python writes get theirs from `src/saturday_hq/table_docs.py`.
 cfb-saturday-hq/
   app/                 # Databricks App (React + Express)
   dbt/                 # dbt project: models, macros, and the committed profiles.yml
-  docs/                # Step-by-step, Genie, data dictionary (incl. calculated metrics)
+  docs/                # Step-by-step, data dictionary (incl. calculated metrics)
   notebooks/           # Python steps, 00 → 05; dbt runs between 01/02 and between 04/05
   resources/           # Databricks Asset Bundle jobs
   src/saturday_hq/     # Python package used by notebooks

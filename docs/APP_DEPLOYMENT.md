@@ -68,4 +68,6 @@ ON SCHEMA cfb_saturday_hq_prod.cfb_app
 TO `<APP_APPLICATION_ID>`;
 ```
 
-The App is read-only, so it does not need `MODIFY`, `CREATE TABLE`, or ownership privileges.
+The App is read-only for serving briefs/chat. Filling briefs with
+`app/scripts/warm_genie_briefs.js` needs a user or service principal with **MODIFY** on
+`cfb_app.genie_team_briefs` plus Genie Can Run on the space.

@@ -1,0 +1,24 @@
+version: 2
+
+models:
+  - name: app_genie_team_briefs
+    description: >
+      Season Preview Genie bottom-line briefs per team. dbt inserts skeleton rows
+      (season, team, prompt); Genie text is filled by the warm script, not by dbt.
+    columns:
+      - name: season
+        description: Preview season year
+      - name: team
+        description: CFBD team name
+      - name: prompt
+        description: Exact Genie prompt used for the brief
+      - name: brief_text
+        description: Genie answer (null until warm script runs)
+      - name: conversation_id
+        description: Genie conversation id from the warm run
+      - name: message_id
+        description: Genie message id from the warm run
+      - name: space_id
+        description: Genie space/agent id that produced the brief
+      - name: generated_at
+        description: When brief_text was written
