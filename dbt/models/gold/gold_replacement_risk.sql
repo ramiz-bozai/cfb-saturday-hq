@@ -1,9 +1,9 @@
 {{ config(alias='replacement_risk') }}
 
 /*
-    Category-aware replacement risk callouts for the Preview tab.
+    Category-aware replacement risk callouts for the Season Preview tab.
 
-    Departed production = portal exits + NFL draft picks (draft year = preview season).
+    Departed production = portal exits + NFL draft picks (draft year = Season Preview target).
     Primary metric by position group:
       QB → prior pass attempts
       WR/TE → receiving yards

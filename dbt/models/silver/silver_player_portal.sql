@@ -1,7 +1,7 @@
 {{ config(alias='player_portal') }}
 
 /*
-    Clean portal entries for Preview analytics.
+    Clean portal entries for Season Preview analytics.
 
     Drop:
       - eligibility = Withdrawn (entered portal then returned / withdrew)

@@ -1,5 +1,5 @@
 {#
-    Map CFBD roster / portal / usage / draft position strings onto Preview unit groups.
+    Map CFBD roster / portal / usage / draft position strings onto Season Preview unit groups.
     Draft picks use full names (Quarterback, Wide Receiver, …); rosters use abbreviations.
 #}
 {% macro position_group(col) -%}

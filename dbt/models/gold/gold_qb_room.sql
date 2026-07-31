@@ -1,7 +1,10 @@
 {{ config(alias='qb_room') }}
 
 /*
-    Quarterback room for a preview season with an explicit classification rule tree.
+    Quarterback room for a Season Preview target season with an explicit classification rule tree.
+
+    Restricted to FBS teams in silver_team_seasons (target or prior season), matching
+    portal_team_ledger / transfer_dependency.
 
     Enriched from existing gold tables (no new CFBD domains):
       - career pass attempts / career PPA across gold_player_season
@@ -10,12 +13,22 @@
       - transfer history from gold_portal_moves
       - backup flag = second-ranked by prior/career attempts
       - turnover rate = INT/att; fumbles_lost when present
+      - Proven elite = non-transfer, >=250 career/prior att, weighted PPA >= 0.35
 
     Phase B (deferred — endpoints not landed): success rate, explosiveness,
     sack rate, team W-L with each QB.
 */
 
-with career as (
+with fbs as (
+
+    select distinct
+        season,
+        team
+    from {{ ref('silver_team_seasons') }}
+
+),
+
+career as (
 
     select
         athlete_id,
@@ -97,6 +110,12 @@ qbs as (
     left join transfer_history as th
         on th.player_name_key = r.player_name_key
     where r.position_group = 'QB'
+      and exists (
+          select 1
+          from fbs
+          where fbs.team = r.team
+            and fbs.season in (r.season, r.season - 1)
+      )
 
 ),
 
@@ -189,7 +208,7 @@ classified as (
         case
             when not q.is_transfer_addition
              and coalesce(q.career_or_prior_att, q.attempts_for_rank, 0) >= 250
-             and coalesce(q.career_avg_ppa_weighted, q.avg_ppa_all, 0) >= 0.25
+             and coalesce(q.career_avg_ppa_weighted, q.avg_ppa_all, 0) >= 0.35
             then 'Proven elite starter'
             when not q.is_transfer_addition
              and coalesce(q.career_or_prior_att, q.attempts_for_rank, 0) >= 150

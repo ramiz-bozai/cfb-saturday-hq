@@ -19,7 +19,7 @@ def current_cfb_season(today: Optional[date] = None) -> int:
 
 
 def preview_season(today: Optional[date] = None) -> int:
-    """Upcoming season fans care about in the offseason.
+    """Upcoming season for Season Preview.
 
     Before August, that is the calendar year (e.g. July 2026 -> 2026). From August on, it matches
     current_cfb_season(). Distinct from current_cfb_season(), which still points at the last
@@ -96,7 +96,7 @@ HISTORICAL_DOMAINS = (
     "recruiting_teams",
     "rankings",
     "lines",
-    # Player-level domains for Offseason Preview (rosters require one call per FBS team).
+    # Player-level domains for Season Preview (rosters require one call per FBS team).
     "rosters",
     "player_portal",
     "player_returning",
@@ -132,7 +132,7 @@ WEEKLY_DOMAINS = (
 # mid-week pull costs 1-2 calls instead of a full weekly run.
 MARKET_DOMAINS = ("lines",)
 
-# Offseason Preview: player domains for the upcoming season plus prior-season production.
+# Season Preview: player domains for the upcoming season plus prior-season production.
 # Allowed outside the Aug–Jan window. Rosters dominate the call count (~130 teams / year).
 PREVIEW_DOMAINS = (
     "teams_fbs",
@@ -146,7 +146,7 @@ PREVIEW_DOMAINS = (
     "draft_picks",
 )
 
-# Domains that need the prior completed season (production/usage) as well as the preview year.
+# Domains that need the prior completed season (production/usage) as well as the Season Preview year.
 PREVIEW_PRIOR_DOMAINS = (
     "rosters",
     "player_returning",
@@ -156,7 +156,7 @@ PREVIEW_PRIOR_DOMAINS = (
 )
 
 # Draft year N removes athletes from the college season-N constructed roster. Only the
-# upcoming draft year is needed for Preview (one CFBD call).
+# upcoming draft year is needed for Season Preview (one CFBD call).
 PREVIEW_UPCOMING_ONLY_DOMAINS = ("draft_picks",)
 
 INGEST_MODES = ("weekly", "market", "preview")

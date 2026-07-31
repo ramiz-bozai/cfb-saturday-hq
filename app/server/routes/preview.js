@@ -46,9 +46,12 @@ router.get("/overview", async (req, res, next) => {
           FROM ${gold("returning_production_team")}
           WHERE season = ${season}
             AND conference IS NOT NULL
-            AND coalesce(percent_ppa, percent_production) IS NOT NULL
+            AND coalesce(percent_offense_returning, percent_defense_returning) IS NOT NULL
           ${confClause}
-          ORDER BY coalesce(percent_ppa, percent_production) ASC
+          ORDER BY (
+            coalesce(percent_offense_returning, 1.0)
+            + coalesce(percent_defense_returning, 1.0)
+          ) ASC
           LIMIT 8
         `),
         query(`
@@ -64,26 +67,28 @@ router.get("/overview", async (req, res, next) => {
         `),
         query(`
           SELECT p.team, p.impact_additions, p.depth_additions, p.impact_losses, p.depth_losses,
-                 p.net_production_gained, p.net_talent_gained,
+                 p.net_offense_production_gained, p.net_defense_production_gained,
+                 p.net_talent_gained,
                  p.projected_starters_added, p.projected_starters_lost, p.avg_continuity_score
           FROM ${gold("portal_team_ledger")} p
           LEFT JOIN ${gold("returning_production_team")} r
             ON r.season = p.season AND r.team = p.team
           WHERE p.season = ${season}
           ${confJoin}
-          ORDER BY p.net_production_gained DESC NULLS LAST
+          ORDER BY p.net_offense_production_gained DESC NULLS LAST
           LIMIT 8
         `),
         query(`
           SELECT p.team, p.impact_additions, p.depth_additions, p.impact_losses, p.depth_losses,
-                 p.net_production_gained, p.net_talent_gained,
+                 p.net_offense_production_gained, p.net_defense_production_gained,
+                 p.net_talent_gained,
                  p.projected_starters_added, p.projected_starters_lost, p.avg_continuity_score
           FROM ${gold("portal_team_ledger")} p
           LEFT JOIN ${gold("returning_production_team")} r
             ON r.season = p.season AND r.team = p.team
           WHERE p.season = ${season}
           ${confJoin}
-          ORDER BY p.net_production_gained ASC NULLS LAST
+          ORDER BY p.net_offense_production_gained ASC NULLS LAST
           LIMIT 8
         `),
         query(`
