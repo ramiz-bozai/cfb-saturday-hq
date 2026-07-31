@@ -67,6 +67,78 @@
 {%- endmacro %}
 
 
+{#
+    Normalize a position string to a consistent abbreviation across sources that disagree on
+    vocabulary: rosters and portal use abbreviations (WR, EDGE, S), draft picks use full names
+    (Wide Receiver, Defensive Edge, Safety), and nflverse UDFA rows use coarse ones (DB, DL, OL).
+
+    The output set is position_group with receivers split into WR and TE and special teams split
+    into K, P and LS — the finest granularity every source can actually support. Cornerbacks and
+    safeties stay merged as DB because UDFA rows cannot distinguish them.
+#}
+{% macro position_abbrev(col) -%}
+    case upper(trim({{ col }}))
+        when 'QB' then 'QB'
+        when 'QUARTERBACK' then 'QB'
+        when 'RB' then 'RB'
+        when 'FB' then 'RB'
+        when 'RUNNING BACK' then 'RB'
+        when 'FULLBACK' then 'RB'
+        when 'WR' then 'WR'
+        when 'WIDE RECEIVER' then 'WR'
+        when 'TE' then 'TE'
+        when 'TIGHT END' then 'TE'
+        when 'OL' then 'OL'
+        when 'OT' then 'OL'
+        when 'OG' then 'OL'
+        when 'OC' then 'OL'
+        when 'C' then 'OL'
+        when 'G' then 'OL'
+        when 'T' then 'OL'
+        when 'IOL' then 'OL'
+        when 'CENTER' then 'OL'
+        when 'OFFENSIVE GUARD' then 'OL'
+        when 'OFFENSIVE TACKLE' then 'OL'
+        when 'OFFENSIVE LINEMAN' then 'OL'
+        when 'DL' then 'DL'
+        when 'DE' then 'DL'
+        when 'DT' then 'DL'
+        when 'NT' then 'DL'
+        when 'EDGE' then 'DL'
+        when 'DEFENSIVE EDGE' then 'DL'
+        when 'DEFENSIVE END' then 'DL'
+        when 'DEFENSIVE TACKLE' then 'DL'
+        when 'DEFENSIVE LINEMAN' then 'DL'
+        when 'NOSE TACKLE' then 'DL'
+        when 'LB' then 'LB'
+        when 'ILB' then 'LB'
+        when 'OLB' then 'LB'
+        when 'MLB' then 'LB'
+        when 'LINEBACKER' then 'LB'
+        when 'INSIDE LINEBACKER' then 'LB'
+        when 'OUTSIDE LINEBACKER' then 'LB'
+        when 'DB' then 'DB'
+        when 'CB' then 'DB'
+        when 'S' then 'DB'
+        when 'FS' then 'DB'
+        when 'SS' then 'DB'
+        when 'SAF' then 'DB'
+        when 'CORNERBACK' then 'DB'
+        when 'SAFETY' then 'DB'
+        when 'DEFENSIVE BACK' then 'DB'
+        when 'K' then 'K'
+        when 'PK' then 'K'
+        when 'PLACE KICKER' then 'K'
+        when 'KICKER' then 'K'
+        when 'P' then 'P'
+        when 'PUNTER' then 'P'
+        when 'LS' then 'LS'
+        when 'LONG SNAPPER' then 'LS'
+        else 'OTHER'
+    end
+{%- endmacro %}
+
+
 {# Stable person key for portal rows that lack athleteId. #}
 {% macro player_name_key(first_name_col, last_name_col) -%}
     lower(trim(coalesce({{ first_name_col }}, ''))) || '|' || lower(trim(coalesce({{ last_name_col }}, '')))

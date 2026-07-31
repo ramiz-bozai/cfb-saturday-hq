@@ -250,6 +250,7 @@ export default function SeasonPreviewTeam() {
           </div>
 
           <TeamGenieBrief team={data.team} season={data.season} />
+          <AskGenieChat team={data.team} season={data.season} />
 
           <div className="compare-callout" role="note">
             <strong>How to compare production</strong>
@@ -688,8 +689,6 @@ export default function SeasonPreviewTeam() {
               {data.qbs.length === 0 && <div className="empty">No quarterbacks on the roster snapshot.</div>}
             </div>
           </section>
-
-          <AskGenieChat team={data.team} season={data.season} />
         </>
       )}
     </div>
