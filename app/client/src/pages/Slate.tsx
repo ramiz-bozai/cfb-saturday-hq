@@ -15,7 +15,7 @@ function interestScore(row: any): number {
 function record(row: any, side: "home" | "away"): string {
   const games = Number(row[`${side}_games_played`]);
   const winPct = Number(row[`${side}_win_pct`]);
-  if (!games || Number.isNaN(winPct)) return Number(row.week) <= 1 ? "0-0" : "—";
+  if (!games || Number.isNaN(winPct)) return Number(row.week) <= 1 ? "0-0" : "-";
   const wins = Math.round(games * winPct);
   return `${wins}-${Math.round(games) - wins}`;
 }
@@ -59,7 +59,7 @@ function GameCard({ row, myTeams }: { row: any; myTeams: string[] }) {
           label="Market"
           value={
             Number.isNaN(market)
-              ? "—"
+              ? "-"
               : fmtPct(Math.max(market, 1 - market))
           }
         />
@@ -67,7 +67,7 @@ function GameCard({ row, myTeams }: { row: any; myTeams: string[] }) {
           label="Spread"
           value={
             row.market_spread == null
-              ? "—"
+              ? "-"
               : Number(row.market_spread) === 0
                 ? "Pick'em"
                 : `-${Math.abs(Number(row.market_spread))}`
@@ -127,7 +127,7 @@ export default function SlatePage({
           {seasonType} Week {week} slate
         </h2>
         <p className="lede">
-          Cards prioritize close games and model–market disagreements. Market percentages are
+          Cards prioritize close games and model-market disagreements. Market percentages are
           de-vigged.
         </p>
       </section>
@@ -163,9 +163,8 @@ export function HomePage({ myTeams, profiles, profile, setProfile }: {
     <section className="section">
       <h2>Welcome</h2>
       <p className="lede">
-        Use <strong>Slate</strong> for model vs market, <strong>Matchup</strong> for a deep dive,{" "}
-        <strong>Projections</strong> for win totals / playoff odds, <strong>Brief</strong> for
-        writeups, and <strong>Season Preview</strong> for roster continuity heading into the year.
+        Open <strong>Season Preview</strong> for roster continuity, portal moves, and unit outlooks
+        heading into the year.
       </p>
       <div className="controls">
         <div className="field">

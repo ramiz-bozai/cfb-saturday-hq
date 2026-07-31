@@ -205,12 +205,26 @@ select
     cast(round(ps.kick_points) as int) as prior_kick_points,
     cast(round(ps.pass_int) as int) as prior_pass_int,
     cast(round(ps.fumbles_lost) as int) as prior_fumbles_lost,
-    cast(ps.stars as int) as stars,
-    ps.recruiting_rating,
-    ps.talent_score as prior_talent_score
+    cast(coalesce(ps.stars, rec.stars) as int) as stars,
+    coalesce(ps.recruiting_rating, rec.recruiting_rating) as recruiting_rating,
+    coalesce(
+        ps.talent_score,
+        rec.recruiting_rating,
+        cast(rec.stars as double) / 5.0
+    ) as prior_talent_score
 from chosen as c
 left join {{ ref('gold_player_season') }} as ps
     on ps.athlete_id = c.athlete_id
    and ps.season = c.season - 1
+left join (
+    select
+        athlete_id,
+        cast(max(stars) as int) as stars,
+        max(rating) as recruiting_rating
+    from {{ ref('silver_recruiting_players') }}
+    where athlete_id is not null
+    group by athlete_id
+) as rec
+    on rec.athlete_id = c.athlete_id
 where c.player_name_key is not null
    or c.athlete_id is not null

@@ -362,13 +362,20 @@ a DT’s without that caveat.
 Silver keeps only moves with a **destination** and drops `eligibility = Withdrawn` — metrics
 describe **committed transfers**, not every portal entry.
 
-Prior stats join at origin team for season `S − 1` (athlete ID, else `player_name_key`).
+Prior stats join at origin team for season `S − 1` (athlete ID via origin roster name key).
 
-| Label | Rule |
-|---|---|
-| `impact` | Prior usage ≥ 0.15 **or** production ≥ 15 |
-| `depth` | Otherwise |
-| `projected_starter` | Prior usage ≥ 0.25 **or** production ≥ 40 |
+| Label | Skill / defense (with prior stats) | OL / special teams | Missing prior stats |
+|---|---|---|---|
+| `impact` | usage ≥ 0.15 **or** production ≥ 15 | talent ≥ 0.85 **or** stars ≥ 4 | talent ≥ 0.90 **or** stars ≥ 4, else see below |
+| `depth` | Otherwise (when prior exists) | Rated but below impact | Rated but below that high bar |
+| `unknown` | — | No talent/stars | No prior and no talent/stars |
+| `projected_starter` | usage ≥ 0.25 **or** production ≥ 40; **RB / WR/TE also** if talent ≥ 0.85 **and** (production ≥ 10 **or** usage ≥ 0.08) | talent ≥ 0.90 **or** stars ≥ 4 | talent ≥ 0.90 **or** stars ≥ 4 (RB/WR/TE use the talent+role floor above) |
+
+**Comparable production:** QB/RB/WR-TE share a PPA-based scale (e.g. lost a 60 WR, gained a 30 RB).
+DL/LB/DB share a tackle-based scale. Do **not** compare a WR’s production number to a LB’s.
+OL/ST use talent, not production.
+
+Offense ledger net production = QB + RB + WR/TE only (OL excluded; use net talent).
 
 ### Constructed rosters (`gold_roster_snapshot`)
 
@@ -395,11 +402,10 @@ One row per team × position group × season.
 
 **Returning shares**
 
-- Production %: returning / prior group production if prior production &gt; 1; else headcount
-  `returning / (returning + departures)`. **Clamped to [0, 1]** — signed production can otherwise
-  exceed 100% when portal departures are net-negative.
-- Usage %: usage ratio if prior usage &gt; 0.05; else production ratio; else headcount. Also
-  clamped to [0, 1].
+- Production % / usage %: null for OL/ST (no CFBD signal; UI shows —). Else returning /
+  prior group production (or usage), with headcount fallback when prior is empty.
+  **Clamped to [0, 1]** when present — signed production can otherwise exceed 100% when
+  portal departures are net-negative.
 
 **`continuity_score` (0–100)**
 
@@ -415,7 +421,7 @@ One row per team × position group × season.
 | Metric | Formula |
 |---|---|
 | `net_production_gained` | Σ prior production in − Σ prior production out (portal + non-duplicated draft) — **unit-scoped**; do not sum across offense and defense for fan display |
-| `net_offense_production_gained` / `net_defense_production_gained` | Team ledger: same sum restricted to offense (QB/RB/WR-TE/OL) or defense (DL/LB/DB) units |
+| `net_offense_production_gained` / `net_defense_production_gained` | Team ledger: offense = QB/RB/WR-TE only; defense = DL/LB/DB (OL on talent axis) |
 | `talent_added` / `talent_lost` | **Average** talent of inbound / outbound (not a sum) |
 | `net_talent_gained` | `avg(in) − avg(out)`; null only if both missing |
 | `net_talent_proxy` | Avg transfer stars − avg returning stars |
@@ -440,7 +446,7 @@ do not show it as one comparable currency.
 
 ### Transfer dependency (`gold_transfer_dependency`)
 
-Overall plus offense (QB/RB/WR-TE/OL) and defense (DL/LB/DB).
+Overall plus offense (QB/RB/WR-TE) and defense (DL/LB/DB).
 
 `pct_usage_from_transfers` = transfer prior usage / all prior usage (fallback: production share).
 
@@ -496,7 +502,11 @@ team marts.
 | Continuity / returning % | ≥70 Strong, ≥40 Mixed, else Thin |
 | Transfer dependency | ≥70 Heavy, ≥40 Moderate, else Light |
 | Net production | &gt;5 Gained, &lt;−5 Lost, else Even |
-| Net talent | &gt;0.02 Gained, &lt;−0.02 Lost, else Even |
+| Net talent | &gt;0.02 Gained, &lt;−0.02 Lost, else Even — **portal only** (not HS class) |
+| HS class (Season Preview UI) | From gold `hs_recruiting_class` (CFBD `/recruiting/players`). **247Sports** stars and composite ratings via CollegeFootballData. Team score / national rank = **average 247Sports `rating`** among rated signees (≥10 rated). Display: `#rank · avg stars`. Separate from portal `net_talent_gained`. |
+| Portal / transfer stars & ratings | CFBD `/player/portal` — **247Sports** transfer stars and transfer rating. |
+| Talent score (portal / OL) | Coalesce: 247Sports transfer rating → HS recruiting rating → stars/5 (via CollegeFootballData). |
+
 
 ### Metric views (Genie)
 

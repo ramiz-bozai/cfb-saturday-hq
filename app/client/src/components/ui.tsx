@@ -10,7 +10,11 @@ export function Pill({
   title?: string;
 }) {
   return (
-    <span className={`pill ${tone}${title ? " has-tip" : ""}`} data-tip={title}>
+    <span
+      className={`pill ${tone}${title ? " has-tip" : ""}`}
+      data-tip={title}
+      tabIndex={title ? 0 : undefined}
+    >
       {children}
     </span>
   );
@@ -22,6 +26,7 @@ export function Metric({
   band,
   verdict,
   hint,
+  tip,
 }: {
   label: string;
   value: string;
@@ -30,9 +35,15 @@ export function Metric({
   verdict?: string;
   /** One-line “so what” under the value. */
   hint?: string;
+  /** Hover tooltip (e.g. why a value is dashed). */
+  tip?: string;
 }) {
   return (
-    <div className="metric">
+    <div
+      className={`metric${tip ? " has-tip" : ""}`}
+      data-tip={tip || undefined}
+      tabIndex={tip ? 0 : undefined}
+    >
       <span className="label">{label}</span>
       {verdict && <span className={`verdict ${band || ""}`}>{verdict}</span>}
       <span className={`value ${band || ""}`}>{value}</span>

@@ -45,7 +45,7 @@ export function MatchupPage({
         ["Model home win %", fmtPct(card.model_home_win_prob)],
         ["Market home win %", fmtPct(card.market_home_win_prob)],
         ["Model − market", fmtPct(card.model_minus_market)],
-        ["Spread", card.market_spread ?? "—"],
+        ["Spread", card.market_spread ?? "-"],
         ["Prior SP+ diff", fmtNum(card.sp_overall_diff_prior)],
         ["Talent diff", fmtNum(card.talent_diff, 0)],
       ]
@@ -173,7 +173,7 @@ export function BriefPage({
           <p>{brief.summary}</p>
           <p className="meta">
             Model {fmtPct(brief.model_win_prob)} · Market {fmtPct(brief.market_win_prob)} · Spread{" "}
-            {brief.market_spread ?? "—"}
+            {brief.market_spread ?? "-"}
           </p>
         </div>
       )}
