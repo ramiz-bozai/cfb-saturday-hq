@@ -117,7 +117,7 @@ cd /path/to/cfb-saturday-hq
 databricks bundle deploy -t dev
 ```
 
-**Done when:** you can see `notebooks/`, `dbt/`, `src/`, `app/`, `sql/` in the workspace.
+**Done when:** you can see `notebooks/`, `dbt/`, `src/`, `app/` in the workspace.
 
 ---
 
@@ -205,9 +205,6 @@ view can be created before a model has ever been trained
 The schemas must exist before dbt runs; dbt writes tables into them but does not create them.
 
 **Done when:** both catalogs and the shared volume path print, and demo profiles display.
-
-Equivalent SQL for the UC objects only, without the secret check or demo seed:
-`sql/00_setup_uc.sql`
 
 ---
 
@@ -483,8 +480,6 @@ cards update.
 2. Include only gold tables listed in `docs/GENIE_INSTRUCTIONS.md`.
 3. Paste `docs/GENIE_INSTRUCTIONS.md` into space instructions.
 
-SQL hints: `sql/01_metric_definitions.sql`
-
 **Done when:** a teammate can ask Genie a SP+/PPA question and get an answer from gold.
 
 ---
@@ -642,7 +637,7 @@ is missing or was renamed; it is what suppresses dbt's default schema concatenat
 On a first build pass `--vars '{include_incremental: false}'`; otherwise confirm Step 2
 wrote `historical/<domain>/year=YYYY/<domain>.jsonl`.
 - `gold_matchup_card` **fails on a missing relation:** `cfb_gold.game_predictions` does not
-exist. Re-run the last cells of Notebook 00, or create it from `sql/00_setup_uc.sql`.
+exist. Re-run the last cells of Notebook 00.
 - **Wrong season targeted:** the season rolls over in August. Pin `CURRENT_SEASON` to an int
 in the notebook to override for a one-off run.
 - **Wrote to the wrong environment:** every notebook prints `env:` and `catalog:` in its first

@@ -121,7 +121,6 @@ cfb-saturday-hq/
   docs/                # Step-by-step, Genie instructions, data dictionary
   notebooks/           # Python steps, 00 → 05; dbt runs between 01/02 and between 04/05
   resources/           # Databricks Asset Bundle jobs
-  sql/                 # UC bootstrap + metric notes
   src/saturday_hq/     # Python package used by notebooks
   .env.template        # local-only secrets checklist (copy to .env)
 ```
