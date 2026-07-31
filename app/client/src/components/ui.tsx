@@ -3,11 +3,17 @@ import type { ReactNode } from "react";
 export function Pill({
   tone,
   children,
+  title,
 }: {
   tone: string;
   children: ReactNode;
+  title?: string;
 }) {
-  return <span className={`pill ${tone}`}>{children}</span>;
+  return (
+    <span className={`pill ${tone}${title ? " has-tip" : ""}`} data-tip={title}>
+      {children}
+    </span>
+  );
 }
 
 export function Metric({

@@ -33,26 +33,29 @@ type TeamData = {
 
 /** Fixed board: offense row, then defense + ST. */
 const UNIT_LAYOUT = ["QB", "RB", "WR/TE", "OL", "DL", "LB", "DB", "ST"] as const;
+const SEASON_OPTIONS = [2026] as const;
+
+const ROSTER_SOURCE_TIP = {
+  constructed:
+    "CFBD has not published this season’s roster yet. Built from the prior roster minus portal/draft exits plus portal arrivals.",
+  published: "Official roster published by CFBD for this season.",
+} as const;
 
 export default function PreviewTeam() {
   const [params, setParams] = useSearchParams();
   const [teams, setTeams] = useState<string[]>([]);
-  const [season, setSeason] = useState<number | null>(
-    params.get("season") ? Number(params.get("season")) : null
-  );
+  const [season, setSeason] = useState<number>(() => {
+    const fromUrl = Number(params.get("season"));
+    return SEASON_OPTIONS.includes(fromUrl as (typeof SEASON_OPTIONS)[number])
+      ? fromUrl
+      : SEASON_OPTIONS[0];
+  });
   const [team, setTeam] = useState(params.get("team") || "");
   const [data, setData] = useState<TeamData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api<{ previewSeason: number }>("/api/preview/meta").then((m) => {
-      if (season == null) setSeason(m.previewSeason);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (season == null) return;
     api<string[]>(`/api/preview/teams?season=${season}`).then((list) => {
       setTeams(list);
       if (!team && list.length) setTeam(list.includes("Alabama") ? "Alabama" : list[0]);
@@ -60,7 +63,7 @@ export default function PreviewTeam() {
   }, [season]);
 
   useEffect(() => {
-    if (season == null || !team) return;
+    if (!team) return;
     setLoading(true);
     setError(null);
     setParams({ team, season: String(season) });
@@ -93,13 +96,13 @@ export default function PreviewTeam() {
       <div className="controls">
         <div className="field">
           <label>Season</label>
-          <input
-            type="number"
-            value={season ?? ""}
-            min={2015}
-            max={2030}
-            onChange={(e) => setSeason(Number(e.target.value))}
-          />
+          <select value={season} onChange={(e) => setSeason(Number(e.target.value))}>
+            {SEASON_OPTIONS.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="field">
           <label>Team</label>
@@ -119,40 +122,63 @@ export default function PreviewTeam() {
         <>
           <div className="hero-team">
             <h1>{data.team}</h1>
-            {data.roomClass && <Pill tone={qbTone(data.roomClass)}>{data.roomClass}</Pill>}
-            <Pill tone="muted">{data.rosterSource === "published" ? "Published roster" : "Constructed roster"}</Pill>
+            <Pill
+              tone="muted"
+              title={
+                data.rosterSource === "published"
+                  ? ROSTER_SOURCE_TIP.published
+                  : ROSTER_SOURCE_TIP.constructed
+              }
+            >
+              {data.rosterSource === "published" ? "Published roster" : "Constructed roster"}
+            </Pill>
           </div>
 
           <section className="section">
             <h2>Returning production</h2>
-            <div className="card">
-              <div className="metric-row">
+            <div className="card returning-card">
+              <div className="returning-headline">
                 <Metric label="Offense returning" value={fmtPct(ret?.percent_offense_returning)} band={bandFromScore(ret?.percent_offense_returning)} />
                 <Metric label="Defense returning" value={fmtPct(ret?.percent_defense_returning)} band={bandFromScore(ret?.percent_defense_returning)} />
                 <Metric label="PPA returning" value={fmtPct(ret?.percent_ppa)} band={bandFromScore(ret?.percent_ppa)} />
                 <Metric label="Sacks returning" value={fmtPct(ret?.percent_sacks)} band={bandFromScore(ret?.percent_sacks)} />
               </div>
-              <div className="metric-row" style={{ marginTop: "1rem" }}>
-                <Metric label="Passing" value={fmtPct(ret?.percent_passing ?? ret?.percent_passing_ppa)} />
-                <Metric label="Rushing" value={fmtPct(ret?.percent_rushing_ppa ?? ret?.percent_rushing)} />
-                <Metric label="Receiving" value={fmtPct(ret?.percent_receiving_ppa ?? ret?.percent_receiving)} />
-                <Metric label="Tackles" value={fmtPct(ret?.percent_tackles)} />
-                <Metric label="TFL" value={fmtPct(ret?.percent_tfl)} />
-                <Metric label="INT" value={fmtPct(ret?.percent_interceptions)} />
-                <Metric label="Kicking" value={fmtPct(ret?.percent_kicking)} />
+              <div className="returning-groups">
+                <div className="returning-group">
+                  <p className="group-label">Offense</p>
+                  <div className="returning-detail">
+                    <Metric label="Passing" value={fmtPct(ret?.percent_passing ?? ret?.percent_passing_ppa)} />
+                    <Metric label="Rushing" value={fmtPct(ret?.percent_rushing_ppa ?? ret?.percent_rushing)} />
+                    <Metric label="Receiving" value={fmtPct(ret?.percent_receiving_ppa ?? ret?.percent_receiving)} />
+                  </div>
+                </div>
+                <div className="returning-group">
+                  <p className="group-label">Defense</p>
+                  <div className="returning-detail">
+                    <Metric label="Tackles" value={fmtPct(ret?.percent_tackles)} />
+                    <Metric label="TFL" value={fmtPct(ret?.percent_tfl)} />
+                    <Metric label="INT" value={fmtPct(ret?.percent_interceptions)} />
+                  </div>
+                </div>
+                <div className="returning-group">
+                  <p className="group-label">Special teams</p>
+                  <div className="returning-detail">
+                    <Metric label="Kicking" value={fmtPct(ret?.percent_kicking)} />
+                  </div>
+                </div>
               </div>
             </div>
           </section>
 
           <section className="section">
             <h2>Transfer dependency and portal ledger</h2>
+            <p className="lede">
+              <span>Same score overall, then split by side.</span>
+              <span>Defense usage is share of team tackle-weighted production (not CFBD snaps).</span>
+            </p>
             <div className="split">
               <div className="card">
                 <h3 style={{ marginTop: 0 }}>Transfer dependency</h3>
-                <p className="lede" style={{ marginTop: 0 }}>
-                  Same score overall, then split by side. Defense usage is share of team
-                  tackle-weighted production (not CFBD snaps).
-                </p>
                 <div className="metric-row">
                   <Metric
                     label="Overall"
@@ -229,7 +255,7 @@ export default function PreviewTeam() {
                     <div className="value">−{fmtInt(led?.depth_losses)}</div>
                   </div>
                 </div>
-                <div className="metric-row" style={{ marginTop: "0.85rem" }}>
+                <div className="metric-row ledger-metrics">
                   <Metric
                     label="Net production"
                     verdict={netProductionVerdict(led?.net_production_gained).verdict}
@@ -257,9 +283,10 @@ export default function PreviewTeam() {
           <section className="section">
             <h2>Unit continuity grades</h2>
             <p className="lede">
-              Continuity (0–100) is how much prior production and usage is still on the roster at
-              that unit. Offense: CFBD PPA/usage. Defense (DL/LB/DB): tackle-weighted production
-              and share of team defense production. OL/ST: roster retention when no usage exists.
+              <span>Continuity (0–100) is how much prior production and usage is still on the roster at that unit.</span>
+              <span>Offense: CFBD PPA/usage.</span>
+              <span>Defense (DL/LB/DB): tackle-weighted production and share of team defense production.</span>
+              <span>OL/ST: roster retention when no usage exists.</span>
             </p>
             <div className="unit-grid">
               {UNIT_LAYOUT.map((pg) => {
@@ -328,20 +355,22 @@ export default function PreviewTeam() {
                 <div>
                   <dt>Production</dt>
                   <dd>
-                    Offense: total PPA, or usage × 50. Defense (DL/LB/DB): tackles + 2×TFL + 3×sacks
-                    + 2×INT.
+                    <span>Offense: total PPA, or usage × 50.</span>
+                    <span>Defense (DL/LB/DB): tackles + 2×TFL + 3×sacks + 2×INT.</span>
                   </dd>
                 </div>
                 <div>
                   <dt>Usage</dt>
                   <dd>
-                    Offense: CFBD play share. Defense: share of that team’s defensive production
-                    (not snap %).
+                    <span>Offense: CFBD play share.</span>
+                    <span>Defense: share of that team’s defensive production (not snap %).</span>
                   </dd>
                 </div>
                 <div>
                   <dt>Scale</dt>
-                  <dd>~0 little role · ~10–40 solid · ~15+ often impact · 100+ star season</dd>
+                  <dd>
+                    <span>~0 little role · ~10–40 solid · ~15+ often impact · 100+ star season</span>
+                  </dd>
                 </div>
               </dl>
             </div>

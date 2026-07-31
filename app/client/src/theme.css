@@ -186,6 +186,13 @@ input {
   font-family: var(--font-body);
   font-size: 0.95rem;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.section .lede > span {
+  display: block;
 }
 
 .explainer {
@@ -227,6 +234,13 @@ input {
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.45;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.explainer dd > span {
+  display: block;
 }
 
 @media (max-width: 560px) {
@@ -235,6 +249,75 @@ input {
     gap: 0.15rem;
   }
 }
+
+.returning-card {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.returning-headline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem 1.25rem;
+}
+
+.returning-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem 2.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.returning-group {
+  text-align: center;
+}
+
+.returning-group .group-label {
+  margin: 0 0 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pitch);
+  text-align: center;
+}
+
+.returning-detail {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-start;
+  gap: 1.25rem 2rem;
+}
+
+.returning-detail .metric {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.returning-group:last-child .returning-detail {
+  justify-content: center;
+}
+
+.returning-group:last-child .returning-detail .metric {
+  flex: 0 1 8rem;
+}
+
+@media (max-width: 900px) {
+  .returning-headline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .returning-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .returning-group:last-child .returning-detail .metric {
+    flex: 1 1 0;
+  }
+}
+
 
 .card-grid {
   display: grid;
@@ -310,9 +393,33 @@ input {
   margin: 0.75rem 0 0;
 }
 
+.metric-row.ledger-metrics {
+  margin-top: 1.35rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem 1.75rem;
+}
+
+.metric-row.ledger-metrics .metric {
+  min-width: 0;
+}
+
+.metric-row.ledger-metrics .metric .hint {
+  max-width: none;
+}
+
+@media (max-width: 720px) {
+  .metric-row.ledger-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
 .metric {
   display: grid;
   gap: 0.15rem;
+  text-align: center;
+  justify-items: center;
 }
 
 .metric .label {
@@ -378,6 +485,7 @@ input {
   line-height: 1.35;
   color: var(--muted);
   max-width: 14rem;
+  text-align: center;
 }
 
 .pill {
@@ -415,6 +523,41 @@ input {
 .pill.muted {
   background: rgba(92, 107, 99, 0.14);
   color: var(--muted);
+}
+
+.pill.has-tip {
+  position: relative;
+  cursor: help;
+}
+
+.pill.has-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.45rem);
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 16.5rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 8px;
+  background: var(--pitch);
+  color: #f4f7f5;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+  box-shadow: 0 8px 20px rgba(20, 32, 26, 0.18);
+}
+
+.pill.has-tip:hover::after,
+.pill.has-tip:focus-visible::after {
+  opacity: 1;
 }
 
 .alert {
@@ -468,6 +611,7 @@ input {
   background: rgba(11, 61, 46, 0.04);
   border-radius: 10px;
   padding: 0.75rem;
+  text-align: center;
 }
 
 .ledger-cell .label {

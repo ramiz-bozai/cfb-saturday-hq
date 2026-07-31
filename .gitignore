@@ -12,6 +12,7 @@ app/node_modules/
 app/client/dist/
 dbt/target/
 dbt/dbt_packages/
+dbt/edr_target/
 dbt/logs/
 dbt/.user.yml
 # dbt/profiles.yml is committed on purpose: it holds no secrets, only a

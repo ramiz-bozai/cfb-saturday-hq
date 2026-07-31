@@ -28,3 +28,17 @@ cfb_saturday_hq:
       schema: "default"
       token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
       threads: 32
+
+# Elementary CLI (`edr report`) reads artifact/test tables from this schema.
+# Generated via: dbt run-operation elementary.generate_elementary_cli_profile --target prod
+elementary:
+  target: default
+  outputs:
+    default:
+      type: databricks
+      host: "8259558835430576.6.gcp.databricks.com"
+      http_path: "/sql/1.0/warehouses/a6130b119b718dc3"
+      catalog: "cfb_saturday_hq_prod"
+      schema: "elementary"
+      token: "{{ env_var('DBT_ACCESS_TOKEN') }}"
+      threads: 32
