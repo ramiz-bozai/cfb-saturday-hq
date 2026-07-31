@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
-import previewRoutes from "./routes/preview.js";
+import previewRoutes, { warmPreviewTeamCache } from "./routes/preview.js";
 import slateRoutes from "./routes/slate.js";
 import { defaultSeason, previewSeason } from "./db.js";
 
@@ -44,4 +44,13 @@ app.get("*", (req, res, next) => {
 
 app.listen(port, () => {
   console.log(`Saturday HQ listening on http://localhost:${port}`);
+  // Don't block boot — warm Season Preview team payloads in the background.
+  // Set PREVIEW_CACHE_WARM=0 to skip (useful for cold-path benchmarking).
+  if (process.env.PREVIEW_CACHE_WARM !== "0") {
+    warmPreviewTeamCache().catch((err) => {
+      console.error("Preview team cache warm failed:", err.message || err);
+    });
+  } else {
+    console.log("Preview team cache warm skipped (PREVIEW_CACHE_WARM=0)");
+  }
 });

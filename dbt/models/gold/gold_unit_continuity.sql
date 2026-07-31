@@ -92,15 +92,23 @@ portal_losses as (
             x.season,
             coalesce(ps.team, x.college_team) as team,
             coalesce(ps.position_group, x.position_group) as position_group,
-            case
-                when coalesce(ps.usage_overall, 0.0) >= 0.15
-                  or coalesce(ps.production_score, 0.0) >= 15.0
-                then 'impact'
-                else 'depth'
-            end as impact_class,
+            {{ preview_impact_class(
+                "coalesce(ps.position_group, x.position_group)",
+                'ps.usage_overall',
+                'ps.production_score',
+                'ps.talent_score',
+                'ps.stars',
+                'ps.athlete_id is not null'
+            ) }} as impact_class,
             coalesce(ps.production_score, 0.0) as prior_production_score,
-            coalesce(ps.usage_overall, 0.0) >= 0.25
-                or coalesce(ps.production_score, 0.0) >= 40.0 as projected_starter,
+            {{ preview_projected_starter(
+                "coalesce(ps.position_group, x.position_group)",
+                'ps.usage_overall',
+                'ps.production_score',
+                'ps.talent_score',
+                'ps.stars',
+                'ps.athlete_id is not null'
+            ) }} as projected_starter,
             ps.talent_score as talent_score
         from {{ nfl_college_exits() }} as x
         left join {{ ref('gold_player_season') }} as ps
@@ -143,39 +151,45 @@ select
     r.team,
     r.position_group,
     r.returning_players,
-    -- Clamp to [0, 1]: signed production can exceed 100% when departures are net-negative.
-    least(
-        1.0,
-        greatest(
-            0.0,
-            case
-                when coalesce(pg.production_score, 0) > 1
-                then r.returning_production / nullif(pg.production_score, 0)
-                else coalesce(
-                    coalesce(r.returning_players, 0)
-                        / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
-                    0.0
-                )
-            end
+    -- OL/ST have no CFBD usage/PPA — leave retained null (UI shows —). Else production or headcount.
+    case
+        when r.position_group in ('OL', 'ST') then null
+        else least(
+            1.0,
+            greatest(
+                0.0,
+                case
+                    when coalesce(pg.production_score, 0) > 1
+                    then r.returning_production / nullif(pg.production_score, 0)
+                    else coalesce(
+                        coalesce(r.returning_players, 0)
+                            / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
+                        0.0
+                    )
+                end
+            )
         )
-    ) as production_returning_pct,
-    least(
-        1.0,
-        greatest(
-            0.0,
-            case
-                when coalesce(pg.usage_overall, 0) > 0.05
-                then r.returning_usage / nullif(pg.usage_overall, 0)
-                when coalesce(pg.production_score, 0) > 1
-                then r.returning_production / nullif(pg.production_score, 0)
-                else coalesce(
-                    coalesce(r.returning_players, 0)
-                        / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
-                    0.0
-                )
-            end
+    end as production_returning_pct,
+    case
+        when r.position_group in ('OL', 'ST') then null
+        else least(
+            1.0,
+            greatest(
+                0.0,
+                case
+                    when coalesce(pg.usage_overall, 0) > 0.05
+                    then r.returning_usage / nullif(pg.usage_overall, 0)
+                    when coalesce(pg.production_score, 0) > 1
+                    then r.returning_production / nullif(pg.production_score, 0)
+                    else coalesce(
+                        coalesce(r.returning_players, 0)
+                            / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
+                        0.0
+                    )
+                end
+            )
         )
-    ) as usage_returning_pct,
+    end as usage_returning_pct,
     r.returning_avg_stars,
     r.avg_class_year as experience,
     coalesce(pl.transfer_departures, 0) as transfer_departures,

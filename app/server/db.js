@@ -2,6 +2,9 @@
  * Databricks SQL helper for Saturday HQ app.
  * Local: DATABRICKS_HOST + DATABRICKS_HTTP_PATH + DATABRICKS_TOKEN (or DBT_ACCESS_TOKEN).
  * Apps: DATABRICKS_HOST + DATABRICKS_WAREHOUSE_ID + DATABRICKS_CLIENT_ID/SECRET (OAuth M2M).
+ *
+ * Reuses one DBSQL client and a small pool of sessions so routes that fire Promise.all
+ * do not pay connect/auth on every statement.
  */
 import fs from "fs";
 import path from "path";
@@ -37,6 +40,7 @@ const CATALOG = process.env.SATURDAY_HQ_CATALOG || "cfb_saturday_hq_prod";
 const GOLD = process.env.SATURDAY_HQ_GOLD_SCHEMA || "cfb_gold";
 const SILVER = process.env.SATURDAY_HQ_SILVER_SCHEMA || "cfb_silver";
 const APP = process.env.SATURDAY_HQ_APP_SCHEMA || "cfb_app";
+const POOL_SIZE = Math.max(1, Number(process.env.DATABRICKS_SQL_POOL_SIZE || 12));
 
 export function gold(table) {
   return `${CATALOG}.${GOLD}.${table}`;
@@ -101,22 +105,112 @@ function connectOptions() {
   };
 }
 
-export async function query(sql) {
-  const client = new DBSQLClient({ telemetryEnabled: false });
-  await client.connect(connectOptions());
+let client = null;
+let clientBoot = null;
+const idleSessions = [];
+const waiters = [];
+
+async function bootClient() {
+  if (client) return client;
+  if (clientBoot) return clientBoot;
+
+  clientBoot = (async () => {
+    const c = new DBSQLClient({ telemetryEnabled: false });
+    await c.connect(connectOptions());
+    const sessions = await Promise.all(
+      Array.from({ length: POOL_SIZE }, () => c.openSession())
+    );
+    client = c;
+    idleSessions.push(...sessions);
+    return c;
+  })();
+
   try {
-    const session = await client.openSession();
-    try {
-      const op = await session.executeStatement(sql, { runAsync: true, maxRows: 10000 });
-      const rows = await op.fetchAll({ flatten: true });
-      await op.close();
-      return rows;
-    } finally {
-      await session.close();
-    }
-  } finally {
-    await client.close();
+    return await clientBoot;
+  } catch (err) {
+    clientBoot = null;
+    client = null;
+    idleSessions.length = 0;
+    waiters.length = 0;
+    throw err;
   }
+}
+
+async function acquireSession() {
+  await bootClient();
+  if (idleSessions.length > 0) return idleSessions.pop();
+  return new Promise((resolve) => {
+    waiters.push(resolve);
+  });
+}
+
+function releaseSession(session) {
+  const waiter = waiters.shift();
+  if (waiter) {
+    waiter(session);
+    return;
+  }
+  idleSessions.push(session);
+}
+
+async function replaceDeadSession() {
+  try {
+    await bootClient();
+    if (!client) return;
+    releaseSession(await client.openSession());
+  } catch {
+    // Pool may shrink until the next successful boot.
+  }
+}
+
+/**
+ * Run SQL on a pooled Databricks session.
+ * Safe for concurrent callers (Promise.all) up to DATABRICKS_SQL_POOL_SIZE (default 12).
+ */
+export async function query(sql) {
+  const session = await acquireSession();
+  let healthy = true;
+  try {
+    const op = await session.executeStatement(sql, { runAsync: true, maxRows: 10000 });
+    try {
+      return await op.fetchAll({ flatten: true });
+    } finally {
+      await op.close().catch(() => {});
+    }
+  } catch (err) {
+    healthy = false;
+    try {
+      await session.close();
+    } catch {
+      // ignore close errors on a dead session
+    }
+    await replaceDeadSession();
+    throw err;
+  } finally {
+    if (healthy) releaseSession(session);
+  }
+}
+
+/** Simple process-local TTL cache for expensive JSON responses. */
+export function createTtlCache(ttlMs) {
+  const map = new Map();
+  return {
+    get(key) {
+      const hit = map.get(key);
+      if (!hit) return undefined;
+      if (Date.now() > hit.expires) {
+        map.delete(key);
+        return undefined;
+      }
+      return hit.value;
+    },
+    set(key, value) {
+      map.set(key, { value, expires: Date.now() + ttlMs });
+    },
+    clear() {
+      map.clear();
+    },
+  };
 }
 
 export function esc(value) {

@@ -101,3 +101,74 @@
         + 2.0 * coalesce({{ int_col }}, 0.0)
     )
 {%- endmacro %}
+
+
+{#
+    Season Preview impact / depth / unknown.
+    OL/ST: talent or high stars (no CFBD usage/PPA).
+    Skill/defense with prior stats: usage / production gates.
+    Missing prior: stricter talent fallback (starter-bar), else unknown — not auto-depth.
+#}
+{% macro preview_impact_class(position_group_col, usage_col, production_col, talent_col, stars_col, has_prior_col) -%}
+    case
+        when {{ position_group_col }} in ('OL', 'ST') then
+            case
+                when coalesce({{ talent_col }}, 0.0) >= 0.85
+                  or coalesce({{ stars_col }}, 0) >= 4
+                then 'impact'
+                when coalesce({{ talent_col }}, 0.0) > 0
+                  or {{ stars_col }} is not null
+                then 'depth'
+                else 'unknown'
+            end
+        when {{ has_prior_col }} then
+            case
+                when coalesce({{ usage_col }}, 0.0) >= 0.15
+                  or coalesce({{ production_col }}, 0.0) >= 15.0
+                then 'impact'
+                else 'depth'
+            end
+        -- No prior season stats: only promote on high talent (not ordinary 3★)
+        when coalesce({{ talent_col }}, 0.0) >= 0.90
+          or coalesce({{ stars_col }}, 0) >= 4
+        then 'impact'
+        when coalesce({{ talent_col }}, 0.0) > 0
+          or {{ stars_col }} is not null
+        then 'depth'
+        else 'unknown'
+    end
+{%- endmacro %}
+
+
+{% macro preview_projected_starter(position_group_col, usage_col, production_col, talent_col, stars_col, has_prior_col) -%}
+    case
+        when {{ position_group_col }} in ('OL', 'ST') then (
+            coalesce({{ talent_col }}, 0.0) >= 0.90
+            or coalesce({{ stars_col }}, 0) >= 4
+        )
+        when {{ position_group_col }} in ('RB', 'WR/TE') then (
+            (
+                {{ has_prior_col }}
+                and (
+                    coalesce({{ usage_col }}, 0.0) >= 0.25
+                    or coalesce({{ production_col }}, 0.0) >= 40.0
+                )
+            )
+            or (
+                coalesce({{ talent_col }}, 0.0) >= 0.85
+                and (
+                    coalesce({{ production_col }}, 0.0) >= 10.0
+                    or coalesce({{ usage_col }}, 0.0) >= 0.08
+                )
+            )
+        )
+        when {{ has_prior_col }} then (
+            coalesce({{ usage_col }}, 0.0) >= 0.25
+            or coalesce({{ production_col }}, 0.0) >= 40.0
+        )
+        else (
+            coalesce({{ talent_col }}, 0.0) >= 0.90
+            or coalesce({{ stars_col }}, 0) >= 4
+        )
+    end
+{%- endmacro %}

@@ -260,7 +260,7 @@ select
     best_returner_metric,
     concat(
         'Highest replacement risk: ', position_group,
-        ' — ',
+        ' - ',
         cast(round(100.0 * coalesce(departed_metric / nullif(prior_metric, 0), 0), 0) as string),
         '% of prior ',
         case metric_name

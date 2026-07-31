@@ -8,8 +8,9 @@
     of player talent scores — otherwise big portal classes look like “talent losses”
     just from volume.
 
-    Net production is split by side so offense (PPA-based) and defense (tackle-weighted)
-    are never summed into one fan-facing currency. net_production_gained remains the
+    Net production is split by side so offense (PPA-based: QB/RB/WR-TE) and defense
+    (tackle-weighted: DL/LB/DB) are never summed into one fan-facing currency. OL is
+    excluded from offense nets (talent axis only). net_production_gained remains the
     unscoped sum for debugging only.
 */
 
@@ -47,7 +48,7 @@ counts as (
         sum(depth_losses) as depth_losses,
         sum(
             case
-                when position_group in ('QB', 'RB', 'WR/TE', 'OL')
+                when position_group in ('QB', 'RB', 'WR/TE')
                 then net_production_gained
                 else 0.0
             end

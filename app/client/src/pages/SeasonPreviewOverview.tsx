@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { prefetchPreviewTeams } from "../previewTeamCache";
 import {
   QB_CLASS_ORDER,
   bandFromScore,
@@ -13,6 +14,7 @@ import {
   unitLabel,
 } from "../labels";
 import { Metric, Pill } from "../components/ui";
+import { SOURCE } from "../sourceTips";
 
 type Overview = {
   season: number;
@@ -44,7 +46,18 @@ export default function SeasonPreviewOverview() {
     const q = new URLSearchParams({ season: String(season) });
     if (conference) q.set("conference", conference);
     api<Overview>(`/api/preview/overview?${q}`)
-      .then(setData)
+      .then((overview) => {
+        setData(overview);
+        // Prefetch featured teams so team deep-dives open instantly from this page.
+        const featured = [
+          ...overview.thinnestReturning.map((r) => r.team),
+          ...overview.transferDependent.map((r) => r.team),
+          ...overview.portalWinners.map((r) => r.team),
+          ...overview.portalLosers.map((r) => r.team),
+          ...overview.risks.map((r) => r.team),
+        ];
+        void prefetchPreviewTeams(season, featured, 3);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [season, conference]);
@@ -72,10 +85,12 @@ export default function SeasonPreviewOverview() {
       <section className="section">
         <h2>{season} Season Preview</h2>
         <p className="lede">
-          Roster continuity, portal impact, and QB rooms — weighted by prior usage and
-          production, not stars alone. Prior production retained is last year’s share still
-          on the roster (non-transfers). Rosters are constructed when CFBD has not published
-          the upcoming season yet (prior roster − portal − draft + arrivals).
+          Roster continuity, portal impact, and QB rooms. Skill production (QB/RB/WR) shares one
+          scale; defense production (DL/LB/DB) shares another - they aren’t meant to line up
+          across sides. OL and specialists use talent (247Sports via CollegeFootballData), not
+          production. Prior production retained
+          is last year’s share still on the roster (non-transfers). Rosters are constructed when
+          CFBD has not published the upcoming season yet.
         </p>
         <div className="controls">
           <div className="field">
@@ -111,14 +126,14 @@ export default function SeasonPreviewOverview() {
       <section className="section">
         <h2>Thinnest prior production retained</h2>
         <p className="lede">
-          Share of last season’s production still on the roster via non-transfers — portal
+          Share of last season’s production still on the roster via non-transfers - portal
           replacement is under transfer dependency.
         </p>
         <div className="card-grid">
           {data.thinnestReturning.map((row) => (
             <Link key={row.team} to={`/season-preview/team?team=${encodeURIComponent(row.team)}&season=${season}`} className="card">
               <h3>{row.team}</h3>
-              <p className="meta">{row.conference || "—"}</p>
+              <p className="meta">{row.conference || "-"}</p>
               <div className="metric-row">
                 <Metric label="Offense retained" value={fmtPct(row.percent_offense_returning)} band={bandFromScore(row.percent_offense_returning)} />
                 <Metric label="Defense retained" value={fmtPct(row.percent_defense_returning)} band={bandFromScore(row.percent_defense_returning)} />
@@ -162,7 +177,7 @@ export default function SeasonPreviewOverview() {
       <section className="section">
         <h2>Portal winners and losers</h2>
         <p className="lede">
-          Sorted by offense net (PPA units). Defense net uses tackle-weighted production —
+          Sorted by offense net (PPA units). Defense net uses tackle-weighted production -
           different units, shown separately.
         </p>
         <div className="split">
@@ -181,13 +196,19 @@ export default function SeasonPreviewOverview() {
                       label="Off net"
                       value={fmtNum(row.net_offense_production_gained)}
                       band={netProductionVerdict(row.net_offense_production_gained).band}
+                      tip={SOURCE.offNet}
                     />
                     <Metric
                       label="Def net"
                       value={fmtNum(row.net_defense_production_gained)}
                       band={netProductionVerdict(row.net_defense_production_gained).band}
+                      tip={SOURCE.defNet}
                     />
-                    <Metric label="Net talent" value={fmtNum(row.net_talent_gained, 2)} />
+                    <Metric
+                      label="Net talent"
+                      value={fmtNum(row.net_talent_gained, 2)}
+                      tip={SOURCE.netTalent}
+                    />
                   </div>
                   <p className="meta" style={{ marginTop: "0.5rem" }}>
                     Impact +{fmtInt(row.impact_additions)} / −{fmtInt(row.impact_losses)}
@@ -211,13 +232,19 @@ export default function SeasonPreviewOverview() {
                       label="Off net"
                       value={fmtNum(row.net_offense_production_gained)}
                       band={netProductionVerdict(row.net_offense_production_gained).band}
+                      tip={SOURCE.offNet}
                     />
                     <Metric
                       label="Def net"
                       value={fmtNum(row.net_defense_production_gained)}
                       band={netProductionVerdict(row.net_defense_production_gained).band}
+                      tip={SOURCE.defNet}
                     />
-                    <Metric label="Net talent" value={fmtNum(row.net_talent_gained, 2)} />
+                    <Metric
+                      label="Net talent"
+                      value={fmtNum(row.net_talent_gained, 2)}
+                      tip={SOURCE.netTalent}
+                    />
                   </div>
                   <p className="meta" style={{ marginTop: "0.5rem" }}>
                     Impact +{fmtInt(row.impact_additions)} / −{fmtInt(row.impact_losses)}
@@ -231,14 +258,14 @@ export default function SeasonPreviewOverview() {
 
       <section className="section">
         <h2>Hottest replacement risks</h2>
-        <p className="lede">Departed production that returners have not covered — portal and NFL draft.</p>
+        <p className="lede">Departed production that returners have not covered - portal and NFL draft.</p>
         {data.risks.map((row, i) => (
           <div key={`${row.team}-${row.position_group}-${i}`} className={`alert ${row.replacement_risk === "elevated" ? "elevated" : ""}`}>
             <div className="title">
               {row.team} · {unitLabel(row.position_group)}{" "}
               <Pill tone={riskTone(row.replacement_risk)}>{row.replacement_risk || "risk"}</Pill>
             </div>
-            <p>{row.callout}</p>
+            <p>{String(row.callout || "").replace(/[—–]/g, "-")}</p>
           </div>
         ))}
       </section>

@@ -2,7 +2,12 @@
 
 /*
     Transfer portal rows enriched with prior-season usage/production at the origin school.
-    Impact vs depth uses usage/production thresholds, never stars alone.
+
+    Impact / projected starter:
+      - OL/ST: talent (≥0.85 / ≥0.90) or stars (≥3 / ≥4)
+      - Skill/defense with prior stats: usage/production gates
+      - Missing prior: talent fallback, else impact_class = unknown (not auto-depth)
+
     talent_score prefers transfer_rating, then prior recruiting rating, then stars/5.
 */
 
@@ -68,14 +73,22 @@ select
         cast(ps.stars as double) / 5.0,
         0.0
     ) as talent_score,
-    case
-        when coalesce(ps.usage_overall, 0.0) >= 0.15
-          or coalesce(ps.production_score, 0.0) >= 15.0
-        then 'impact'
-        else 'depth'
-    end as impact_class,
-    coalesce(ps.usage_overall, 0.0) >= 0.25
-        or coalesce(ps.production_score, 0.0) >= 40.0 as projected_starter
+    {{ preview_impact_class(
+        'p.position_group',
+        'ps.usage_overall',
+        'ps.production_score',
+        "coalesce(p.transfer_rating, ps.recruiting_rating, cast(p.transfer_stars as double) / 5.0, cast(ps.stars as double) / 5.0)",
+        'coalesce(p.transfer_stars, ps.stars)',
+        'ps.athlete_id is not null'
+    ) }} as impact_class,
+    {{ preview_projected_starter(
+        'p.position_group',
+        'ps.usage_overall',
+        'ps.production_score',
+        "coalesce(p.transfer_rating, ps.recruiting_rating, cast(p.transfer_stars as double) / 5.0, cast(ps.stars as double) / 5.0)",
+        'coalesce(p.transfer_stars, ps.stars)',
+        'ps.athlete_id is not null'
+    ) }} as projected_starter
 from portal as p
 left join origin_roster as o
     on o.portal_season = p.season

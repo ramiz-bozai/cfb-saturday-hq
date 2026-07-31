@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import {
+  fetchPreviewTeam,
+  getCachedPreviewTeam,
+} from "../previewTeamCache";
+import {
   bandFromScore,
   continuityVerdict,
   dependencyBand,
@@ -9,6 +13,7 @@ import {
   fmtInt,
   fmtNum,
   fmtPct,
+  impactTone,
   netProductionVerdict,
   netTalentVerdict,
   qbTone,
@@ -16,6 +21,7 @@ import {
   unitLabel,
 } from "../labels";
 import { Metric, Pill } from "../components/ui";
+import { SOURCE } from "../sourceTips";
 
 type TeamData = {
   season: number;
@@ -23,6 +29,12 @@ type TeamData = {
   logoUrl: string | null;
   rosterSource: string;
   roomClass: string | null;
+  priorRecord: {
+    season: number;
+    wins: number;
+    losses: number;
+    gamesPlayed?: number;
+  } | null;
   returning: any;
   units: any[];
   ledger: any;
@@ -30,11 +42,37 @@ type TeamData = {
   risks: any[];
   moves: any[];
   qbs: any[];
+  hsClass: {
+    signees?: number;
+    rated_signees?: number;
+    avg_stars?: number;
+    four_stars?: number;
+    five_stars?: number;
+    avg_rating?: number;
+    class_rank?: number;
+  } | null;
+  hsRecruits: {
+    player_name?: string;
+    position?: string;
+    position_group?: string;
+    stars?: number;
+    rating?: number;
+    recruiting_rank?: number;
+    high_school?: string;
+    city?: string;
+    state_province?: string;
+    recruit_type?: string;
+  }[];
 };
 
 /** Fixed board: offense row, then defense + ST. */
 const UNIT_LAYOUT = ["QB", "RB", "WR/TE", "OL", "DL", "LB", "DB", "ST"] as const;
 const SEASON_OPTIONS = [2026] as const;
+
+/** OL/ST have no CFBD usage/PPA - show talent / continuity, not fake 0 production. */
+function isTalentOnlyUnit(group: string | null | undefined): boolean {
+  return group === "OL" || group === "ST";
+}
 
 const ROSTER_SOURCE_TIP = {
   constructed:
@@ -65,13 +103,29 @@ export default function SeasonPreviewTeam() {
 
   useEffect(() => {
     if (!team) return;
-    setLoading(true);
+    let cancelled = false;
     setError(null);
     setParams({ team, season: String(season) });
-    api<TeamData>(`/api/preview/team/${encodeURIComponent(team)}?season=${season}`)
-      .then(setData)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    const cached = getCachedPreviewTeam(season, team) as TeamData | undefined;
+    if (cached && Array.isArray(cached.hsRecruits)) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    fetchPreviewTeam(season, team)
+      .then((next) => {
+        if (!cancelled) setData(next as TeamData);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [season, team]);
 
   const arrivals = useMemo(
@@ -91,6 +145,26 @@ export default function SeasonPreviewTeam() {
   const ret = data?.returning;
   const dep = data?.dependency;
   const led = data?.ledger;
+  const hs = data?.hsClass;
+  const topHsRecruits = useMemo(() => {
+    return [...(data?.hsRecruits || [])]
+      .sort((a, b) => {
+        const rating = Number(b.rating ?? 0) - Number(a.rating ?? 0);
+        if (rating !== 0) return rating;
+        return Number(a.recruiting_rank ?? 99999) - Number(b.recruiting_rank ?? 99999);
+      })
+      .slice(0, 5);
+  }, [data?.hsRecruits]);
+  const riskOffense = useMemo(() => {
+    const order = ["QB", "RB", "WR/TE"];
+    const by = new Map((data?.risks || []).map((r) => [r.position_group, r]));
+    return order.map((pg) => by.get(pg)).filter(Boolean);
+  }, [data?.risks]);
+  const riskDefense = useMemo(() => {
+    const order = ["DL", "LB", "DB"];
+    const by = new Map((data?.risks || []).map((r) => [r.position_group, r]));
+    return order.map((pg) => by.get(pg)).filter(Boolean);
+  }, [data?.risks]);
 
   return (
     <div>
@@ -118,8 +192,11 @@ export default function SeasonPreviewTeam() {
       </div>
 
       {error && <div className="empty">{error}</div>}
-      {loading && <div className="loading">Loading team…</div>}
-      {!loading && data && (
+      {loading && !data && <div className="loading">Loading team…</div>}
+      {loading && data && data.team !== team && (
+        <div className="loading">Loading {team}…</div>
+      )}
+      {data && (
         <>
           <div className="hero-team">
             {data.logoUrl && (
@@ -133,6 +210,14 @@ export default function SeasonPreviewTeam() {
               />
             )}
             <h1>{data.team}</h1>
+            {data.priorRecord && (
+              <Pill
+                tone="muted"
+                title={`${data.priorRecord.season} final record (all games)`}
+              >
+                {fmtInt(data.priorRecord.wins)}-{fmtInt(data.priorRecord.losses)}
+              </Pill>
+            )}
             <Pill
               tone="muted"
               title={
@@ -143,6 +228,21 @@ export default function SeasonPreviewTeam() {
             >
               {data.rosterSource === "published" ? "Published roster" : "Constructed roster"}
             </Pill>
+          </div>
+
+          <div className="compare-callout" role="note">
+            <strong>How to compare production</strong>
+            <p>
+              Skill players (QB, RB, WR/TE) share one production scale - e.g. lost a 60 receiver,
+              gained a 30 running back.
+            </p>
+            <p>
+              Defenders (DL, LB, DB) share another - e.g. lost a 20 DB, gained a 40 LB.
+            </p>
+            <p>
+              Skill and defense scores aren’t interchangeable. OL and specialists use talent
+              (247Sports via CollegeFootballData), not production.
+            </p>
           </div>
 
           <section className="section">
@@ -212,7 +312,7 @@ export default function SeasonPreviewTeam() {
                   />
                 </div>
                 <p className="lede" style={{ marginBottom: "0.35rem", marginTop: "1rem" }}>
-                  Offense (QB, RB, WR/TE, OL)
+                  Offense (QB, RB, WR/TE)
                 </p>
                 <div className="metric-row">
                   <Metric
@@ -276,21 +376,44 @@ export default function SeasonPreviewTeam() {
                     verdict={netProductionVerdict(led?.net_offense_production_gained).verdict}
                     value={fmtNum(led?.net_offense_production_gained)}
                     band={netProductionVerdict(led?.net_offense_production_gained).band}
-                    hint="Prior offense production (PPA-based) gained minus lost via portal/draft."
+                    tip={SOURCE.offNet}
+                    hint="Prior offense production gained minus lost via portal/draft."
                   />
                   <Metric
                     label="Def net"
                     verdict={netProductionVerdict(led?.net_defense_production_gained).verdict}
                     value={fmtNum(led?.net_defense_production_gained)}
                     band={netProductionVerdict(led?.net_defense_production_gained).band}
-                    hint="Prior defense production (tackle-weighted) gained minus lost via portal/draft."
+                    tip={SOURCE.defNet}
+                    hint="Prior defense production gained minus lost via portal/draft."
                   />
                   <Metric
                     label="Net talent"
                     verdict={netTalentVerdict(led?.net_talent_gained).verdict}
                     value={fmtNum(led?.net_talent_gained, 2)}
                     band={netTalentVerdict(led?.net_talent_gained).band}
-                    hint="Avg recruiting quality of arrivals minus departures."
+                    tip={SOURCE.netTalent}
+                    hint="Portal only - 247Sports talent via CollegeFootballData, not the HS class."
+                  />
+                  <Metric
+                    label="HS class"
+                    value={
+                      hs?.class_rank != null
+                        ? `#${fmtInt(hs.class_rank)} · ${fmtNum(hs.avg_stars, 1)}★`
+                        : hs?.avg_stars != null
+                          ? `${fmtNum(hs.avg_stars, 1)}★`
+                          : "-"
+                    }
+                    tip={
+                      hs?.avg_stars != null || hs?.class_rank != null
+                        ? SOURCE.hsClass
+                        : undefined
+                    }
+                    hint={
+                      hs?.rated_signees != null || hs?.signees != null
+                        ? `Incoming HS class for ${data.season}: ${fmtInt(hs.rated_signees ?? hs.signees)} rated / ${fmtInt(hs.signees)} signees, ${fmtInt(hs.four_stars)} four-stars+ (247Sports). Rank by avg 247Sports rating (min 10 rated).`
+                        : `No ${data.season} high-school signees found for this school.`
+                    }
                   />
                   <Metric
                     label="Projected starters"
@@ -303,12 +426,52 @@ export default function SeasonPreviewTeam() {
           </section>
 
           <section className="section">
+            <h2>HS talent added</h2>
+            <div className="card">
+              {topHsRecruits.length === 0 ? (
+                <p className="meta" style={{ margin: 0 }}>
+                  No {data.season} high-school signees found for this school.
+                </p>
+              ) : (
+                <ol className="hs-top-list">
+                  {topHsRecruits.map((r, i) => (
+                    <li key={`${r.player_name}-${i}`}>
+                      <div className="hs-top-main">
+                        <strong>{r.player_name}</strong>
+                        <span className="meta">
+                          {[r.position, r.high_school, r.state_province].filter(Boolean).join(" · ")}
+                        </span>
+                      </div>
+                      <div className="hs-top-stats">
+                        {r.stars != null && (
+                          <Pill
+                            tone={r.stars >= 5 ? "amber" : r.stars >= 4 ? "trust" : "muted"}
+                            title={SOURCE.hsStars}
+                          >
+                            {fmtInt(r.stars)}★
+                          </Pill>
+                        )}
+                        <span
+                          className={`hs-rating${r.rating != null ? " has-tip" : ""}`}
+                          data-tip={r.rating != null ? SOURCE.hsRating : undefined}
+                          tabIndex={r.rating != null ? 0 : undefined}
+                        >
+                          {r.rating != null ? fmtNum(r.rating, 4) : "-"}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </section>
+
+          <section className="section">
             <h2>Unit continuity grades</h2>
             <p className="lede">
-              <span>Continuity (0–100) is how much prior production and usage is still on the roster at that unit.</span>
-              <span>Offense: CFBD PPA/usage.</span>
-              <span>Defense (DL/LB/DB): tackle-weighted production and share of team defense production.</span>
-              <span>OL/ST: roster retention when no usage exists.</span>
+              <span>Continuity (0-100): for skill and defense, share of prior production/usage still on the roster.</span>
+              <span>Offense: CFBD PPA/usage. Defense: tackle-weighted production.</span>
+              <span>OL/special teams: roster retention only - production/usage shown as -; use net talent.</span>
             </p>
             <div className="unit-grid">
               {UNIT_LAYOUT.map((pg) => {
@@ -320,6 +483,7 @@ export default function SeasonPreviewTeam() {
                     </div>
                   );
                 }
+                const talentOnly = isTalentOnlyUnit(pg);
                 return (
                   <div key={pg} className="card">
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "center" }}>
@@ -332,21 +496,31 @@ export default function SeasonPreviewTeam() {
                         verdict={continuityVerdict(u.continuity_score, true)}
                         value={`${fmtInt(u.continuity_score)} / 100`}
                         band={bandFromScore(Number(u.continuity_score), true)}
+                        tip={SOURCE.continuity}
                       />
                       <Metric
                         label="Production returning"
-                        value={fmtPct(u.production_returning_pct)}
-                        band={bandFromScore(u.production_returning_pct)}
+                        value={talentOnly ? "-" : fmtPct(u.production_returning_pct)}
+                        band={talentOnly ? undefined : bandFromScore(u.production_returning_pct)}
                       />
                       <Metric
-                        label="Usage returning"
-                        value={fmtPct(u.usage_returning_pct)}
-                        band={bandFromScore(u.usage_returning_pct)}
+                        label={talentOnly ? "Net talent" : "Usage returning"}
+                        value={
+                          talentOnly
+                            ? fmtNum(u.net_talent_gained, 2)
+                            : fmtPct(u.usage_returning_pct)
+                        }
+                        band={
+                          talentOnly
+                            ? netTalentVerdict(u.net_talent_gained).band
+                            : bandFromScore(u.usage_returning_pct)
+                        }
+                        tip={talentOnly ? SOURCE.netTalent : undefined}
                       />
                     </div>
                     <p className="meta" style={{ marginTop: "0.65rem" }}>
-                      Impact +{fmtInt(u.impact_additions)} / −{fmtInt(u.impact_losses)} · Net talent{" "}
-                      {fmtNum(u.net_talent_gained, 2)}
+                      Impact +{fmtInt(u.impact_additions)} / −{fmtInt(u.impact_losses)}
+                      {!talentOnly && <> · Net talent {fmtNum(u.net_talent_gained, 2)}</>}
                     </p>
                   </div>
                 );
@@ -354,44 +528,85 @@ export default function SeasonPreviewTeam() {
             </div>
           </section>
 
-          {data.risks.length > 0 && (
+          {(riskOffense.length > 0 || riskDefense.length > 0) && (
             <section className="section">
               <h2>Replacement risk</h2>
-              {data.risks.map((r, i) => (
-                <div key={i} className={`alert ${r.replacement_risk === "elevated" ? "elevated" : ""}`}>
-                  <div className="title">
-                    {unitLabel(r.position_group)}{" "}
-                    <Pill tone={riskTone(r.replacement_risk)}>{r.replacement_risk}</Pill>
-                  </div>
-                  <p>{r.callout}</p>
+              <div className="risk-grid">
+                <div className="risk-col">
+                  {riskOffense.map((r, i) => (
+                    <div
+                      key={`off-${r.position_group}-${i}`}
+                      className={`alert ${r.replacement_risk === "elevated" ? "elevated" : ""}`}
+                    >
+                      <div className="title">
+                        {unitLabel(r.position_group)}{" "}
+                        <Pill tone={riskTone(r.replacement_risk)}>{r.replacement_risk}</Pill>
+                      </div>
+                      <p>{String(r.callout || "").replace(/[—–]/g, "-")}</p>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <div className="risk-col">
+                  {riskDefense.map((r, i) => (
+                    <div
+                      key={`def-${r.position_group}-${i}`}
+                      className={`alert ${r.replacement_risk === "elevated" ? "elevated" : ""}`}
+                    >
+                      <div className="title">
+                        {unitLabel(r.position_group)}{" "}
+                        <Pill tone={riskTone(r.replacement_risk)}>{r.replacement_risk}</Pill>
+                      </div>
+                      <p>{String(r.callout || "").replace(/[—–]/g, "-")}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </section>
           )}
 
           <section className="section">
             <h2>Portal moves</h2>
-            <div className="explainer">
+            <div className="explainer explainer-wide">
               <p>How to read prior production and usage on each move.</p>
-              <dl>
+              <dl className="explainer-cols">
                 <div>
-                  <dt>Production</dt>
+                  <dt>Compare</dt>
                   <dd>
-                    <span>Offense: total PPA, or usage × 50.</span>
-                    <span>Defense (DL/LB/DB): tackles + 2×(TFL − sacks) + 3×sacks + 2×INT.</span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Usage</dt>
-                  <dd>
-                    <span>Offense: CFBD play share.</span>
-                    <span>Defense: share of that team’s defensive production (not snap %).</span>
+                    <span>OL/specialists: 247Sports talent via CollegeFootballData.</span>
                   </dd>
                 </div>
                 <div>
                   <dt>Scale</dt>
                   <dd>
-                    <span>~0 little role · ~10–40 solid · ~15+ often impact · 100+ star season</span>
+                    <span>~0 little role · ~10-40 solid · ~15+ often impact · 100+ star</span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Production</dt>
+                  <dd>
+                    <span>
+                      Offense: CollegeFootballData PPA or usage × 50. Defense: tackle index. OL/ST: -
+                    </span>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Usage</dt>
+                  <dd>
+                    <span>
+                      Offense: CollegeFootballData play share. Defense: share of team defense
+                      production. OL/ST: -
+                    </span>
+                  </dd>
+                </div>
+                <div className="explainer-span">
+                  <dt>Impact / starter</dt>
+                  <dd>
+                    <span>
+                      Impact: usage ≥ 0.15 or prod ≥ 15 (OL/ST: 247Sports talent ≥ 0.85 or 4★).
+                      Starter: usage ≥ 0.25 or prod ≥ 40; RB/WR/TE also talent ≥ 0.85 with prod ≥ 10
+                      or usage ≥ 0.08; OL/ST talent ≥ 0.90 or 4★. Stars/talent are 247Sports via
+                      CollegeFootballData. Unknown ≠ depth.
+                    </span>
                   </dd>
                 </div>
               </dl>
@@ -429,15 +644,23 @@ export default function SeasonPreviewTeam() {
                     <Metric label="Career PPA" value={fmtNum(q.career_avg_ppa_weighted, 3)} />
                     <Metric label="Turnover rate" value={fmtPct(q.turnover_rate)} />
                   </div>
-                  <p className="meta" style={{ marginTop: "0.55rem" }}>
-                    {[
-                      q.stars != null ? `${fmtInt(q.stars)}★` : null,
-                      q.transfer_count ? `${q.transfer_count} transfer(s)` : null,
-                      q.last_transfer_origin ? `from ${q.last_transfer_origin}` : null,
-                      q.career_rush_yds ? `${fmtInt(q.career_rush_yds)} career rush yds` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
+                  <p className="meta meta-row" style={{ marginTop: "0.55rem" }}>
+                    {q.stars != null && (
+                      <Pill tone="muted" title={SOURCE.qbStars}>
+                        {fmtInt(q.stars)}★
+                      </Pill>
+                    )}
+                    {q.transfer_count ? (
+                      <span>{q.transfer_count} transfer(s)</span>
+                    ) : null}
+                    {q.last_transfer_origin ? <span>from {q.last_transfer_origin}</span> : null}
+                    {q.career_rush_yds ? (
+                      <span>{fmtInt(q.career_rush_yds)} career rush yds</span>
+                    ) : null}
+                    {q.stars == null &&
+                      !q.transfer_count &&
+                      !q.last_transfer_origin &&
+                      !q.career_rush_yds && <span>-</span>}
                   </p>
                 </div>
               ))}
@@ -460,41 +683,65 @@ function MoveList({
   kind: "in" | "out";
 }) {
   const sorted = [...rows].sort((a, b) => {
-    const ai = a.impact_class === "impact" ? 0 : 1;
-    const bi = b.impact_class === "impact" ? 0 : 1;
-    if (ai !== bi) return ai - bi;
-    return Number(b.prior_production_score || 0) - Number(a.prior_production_score || 0);
+    const aOl = a.position_group === "OL" ? 1 : 0;
+    const bOl = b.position_group === "OL" ? 1 : 0;
+    if (aOl !== bOl) return aOl - bOl;
+    const prod =
+      Number(b.prior_production_score ?? 0) - Number(a.prior_production_score ?? 0);
+    if (prod !== 0) return prod;
+    return Number(b.talent_score ?? 0) - Number(a.talent_score ?? 0);
   });
   return (
     <div>
       <h3 style={{ marginTop: 0 }}>{title}</h3>
       {sorted.length === 0 && <p className="meta">None</p>}
-      {sorted.map((m, i) => (
-        <div key={i} className="card" style={{ marginBottom: "0.55rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "center" }}>
-            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.4rem" }}>
-              <strong>
-                {m.first_name} {m.last_name}
-              </strong>
-              <Pill tone="muted">{unitLabel(m.position_group)}</Pill>
+      {sorted.map((m, i) => {
+        const talentOnly = isTalentOnlyUnit(m.position_group);
+        return (
+          <div key={i} className="card" style={{ marginBottom: "0.55rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", alignItems: "center" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.4rem" }}>
+                <strong>
+                  {m.first_name} {m.last_name}
+                </strong>
+                <Pill tone="muted">{unitLabel(m.position_group)}</Pill>
+              </div>
+              <Pill tone={impactTone(m.impact_class, kind)}>
+                {m.impact_class || "unknown"}
+              </Pill>
             </div>
-            <Pill tone={m.impact_class === "impact" ? (kind === "out" ? "danger" : "amber") : "muted"}>
-              {m.impact_class}
-            </Pill>
+            <p className="meta" style={{ margin: "0.35rem 0 0.65rem" }}>
+              {kind === "in" ? `from ${m.origin || "-"}` : `to ${m.destination || "-"}`}
+              {m.projected_starter ? " · Projected starter" : ""}
+            </p>
+            <div className="metric-row">
+              {talentOnly ? (
+                <>
+                  <Metric label="Prior usage" value="-" />
+                  <Metric label="Prior production" value="-" />
+                  <Metric
+                    label="Talent"
+                    value={m.talent_score != null ? fmtNum(m.talent_score, 3) : "-"}
+                    tip={SOURCE.talentScore}
+                  />
+                </>
+              ) : (
+                <>
+                  <Metric label="Prior usage" value={fmtPct(m.prior_usage_overall)} />
+                  <Metric label="Prior production" value={fmtNum(m.prior_production_score)} />
+                </>
+              )}
+              {m.transfer_stars != null && (
+                <Metric
+                  label="Stars"
+                  value={`${fmtInt(m.transfer_stars)}★`}
+                  tip={SOURCE.transferStars}
+                />
+              )}
+            </div>
           </div>
-          <p className="meta" style={{ margin: "0.35rem 0 0.65rem" }}>
-            {kind === "in" ? `from ${m.origin || "—"}` : `to ${m.destination || "—"}`}
-            {m.projected_starter ? " · Projected starter" : ""}
-          </p>
-          <div className="metric-row">
-            <Metric label="Prior usage" value={fmtPct(m.prior_usage_overall)} />
-            <Metric label="Prior production" value={fmtNum(m.prior_production_score)} />
-            {m.transfer_stars != null && (
-              <Metric label="Stars" value={`${fmtInt(m.transfer_stars)}★`} />
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

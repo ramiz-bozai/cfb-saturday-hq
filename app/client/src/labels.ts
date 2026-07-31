@@ -1,5 +1,5 @@
 export function unitLabel(group: string | null | undefined): string {
-  if (!group) return "—";
+  if (!group) return "-";
   if (group === "DB") return "Secondary";
   if (group === "ST") return "Special Teams";
   return group;
@@ -7,20 +7,20 @@ export function unitLabel(group: string | null | undefined): string {
 
 export function fmtPct(value: unknown): string {
   const n = Number(value);
-  if (value == null || Number.isNaN(n)) return "—";
+  if (value == null || Number.isNaN(n)) return "-";
   return `${Math.round(n * 100)}%`;
 }
 
 export function fmtNum(value: unknown, digits = 1): string {
   const n = Number(value);
-  if (value == null || Number.isNaN(n)) return "—";
+  if (value == null || Number.isNaN(n)) return "-";
   return n.toFixed(digits);
 }
 
 /** Whole counts: yards, attempts, TDs, tackles, stars, etc. */
 export function fmtInt(value: unknown): string {
   const n = Number(value);
-  if (value == null || Number.isNaN(n)) return "—";
+  if (value == null || Number.isNaN(n)) return "-";
   return String(Math.round(n));
 }
 
@@ -58,7 +58,7 @@ export function dependencyBand(value: unknown): Band {
 
 export function dependencyVerdict(value: unknown): string {
   const n = Number(value);
-  if (value == null || Number.isNaN(n)) return "—";
+  if (value == null || Number.isNaN(n)) return "-";
   if (n >= 70) return "Heavy";
   if (n >= 40) return "Moderate";
   return "Light";
@@ -73,7 +73,7 @@ export function netProductionVerdict(value: unknown): { band: Band; verdict: str
   return { band: "mid", verdict: "Even" };
 }
 
-/** Average talent delta on ~0–1 recruiting scale. */
+/** Average talent delta on ~0-1 recruiting scale. */
 export function netTalentVerdict(value: unknown): { band: Band; verdict: string } {
   const n = Number(value);
   if (value == null || Number.isNaN(n)) return { band: "mid", verdict: "Even" };
@@ -92,6 +92,13 @@ export function riskTone(risk: string | null | undefined): string {
   if (r === "high") return "danger";
   if (r === "elevated") return "amber";
   if (r === "manageable") return "ok";
+  return "muted";
+}
+
+export function impactTone(cls: string | null | undefined, kind: "in" | "out" = "in"): string {
+  const c = (cls || "").toLowerCase();
+  if (c === "impact") return kind === "out" ? "danger" : "amber";
+  if (c === "unknown") return "muted";
   return "muted";
 }
 
