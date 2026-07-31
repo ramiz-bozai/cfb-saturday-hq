@@ -474,13 +474,14 @@ cards update.
 
 
 
-### Genie
+### Genie (Season Preview)
 
-1. Create a Genie space.
-2. Include only gold tables listed in `docs/GENIE_INSTRUCTIONS.md`.
-3. Paste `docs/GENIE_INSTRUCTIONS.md` into space instructions.
+1. Use the Season Preview Genie space/agent (configured via `GENIE_SPACE_ID` in `app/app.yaml`).
+2. Build skeleton rows: `dbt run --select app_genie_team_briefs --target prod`
+3. Fill briefs: `cd app && node scripts/warm_genie_briefs.js` (needs Genie API access + MODIFY on `cfb_app.genie_team_briefs`)
+4. Team page shows stored briefs under the hero; **Ask Genie** chats live against the same space.
 
-**Done when:** a teammate can ask Genie a SP+/PPA question and get an answer from gold.
+**Done when:** a team page shows a Genie bottom-line brief and Ask Genie answers a portal/continuity question.
 
 ---
 
@@ -616,7 +617,7 @@ Season Preview defaults to the upcoming year before August (July 2026 → 2026).
 | Weekly score + serve              | `notebooks/05_weekly_score_and_serve.py`        | `ml/train.py`, `projections/simulator.py`, `briefs/generate.py`  |
 | dbt connection                    | `dbt/profiles.yml` (committed)                  | `.env.template` → `.env` for `DBT_ACCESS_TOKEN`                  |
 | App                               | `cd app && npm run start`                       | `app/server/`, `app/client/`                                     |
-| Genie                             | `docs/GENIE_INSTRUCTIONS.md`                    | —                                                                |
+| Genie (Season Preview)            | `app/scripts/warm_genie_briefs.js`              | `dbt/models/app/app_genie_team_briefs.sql`, `GENIE_SPACE_ID`     |
 
 
 ---

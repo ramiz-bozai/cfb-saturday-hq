@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import cors from "cors";
 import previewRoutes, { warmPreviewTeamCache } from "./routes/preview.js";
 import slateRoutes from "./routes/slate.js";
+import genieRoutes from "./routes/genie.js";
 import { defaultSeason, previewSeason } from "./db.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/preview", previewRoutes);
+app.use("/api/genie", genieRoutes);
 app.use("/api", slateRoutes);
 
 app.use((err, _req, res, _next) => {
