@@ -7,6 +7,7 @@ import {
   fmtInt,
   fmtNum,
   fmtPct,
+  netProductionVerdict,
   qbTone,
   riskTone,
   unitLabel,
@@ -24,7 +25,7 @@ type Overview = {
   qbRooms: { team: string; room_class: string; qbs: number }[];
 };
 
-export default function PreviewOverview() {
+export default function SeasonPreviewOverview() {
   const [season, setSeason] = useState<number | null>(null);
   const [conference, setConference] = useState("");
   const [data, setData] = useState<Overview | null>(null);
@@ -63,15 +64,17 @@ export default function PreviewOverview() {
   }, [data]);
 
   if (error) return <div className="empty">{error}</div>;
-  if (loading || !data || season == null) return <div className="loading">Loading preview…</div>;
+  if (loading || !data || season == null)
+    return <div className="loading">Loading Season Preview…</div>;
 
   return (
     <div>
       <section className="section">
-        <h2>{season} Offseason Preview</h2>
+        <h2>{season} Season Preview</h2>
         <p className="lede">
           Roster continuity, portal impact, and QB rooms — weighted by prior usage and
-          production, not stars alone. Rosters are constructed when CFBD has not published
+          production, not stars alone. Prior production retained is last year’s share still
+          on the roster (non-transfers). Rosters are constructed when CFBD has not published
           the upcoming season yet (prior roster − portal − draft + arrivals).
         </p>
         <div className="controls">
@@ -98,7 +101,7 @@ export default function PreviewOverview() {
           </div>
           <div className="field">
             <label>Team deep dive</label>
-            <Link className="team-chip" to="/preview/team">
+            <Link className="team-chip" to="/season-preview/team">
               Open team view →
             </Link>
           </div>
@@ -106,17 +109,20 @@ export default function PreviewOverview() {
       </section>
 
       <section className="section">
-        <h2>Thinnest returning production</h2>
-        <p className="lede">Teams bringing back the least prior production — offseason volatility.</p>
+        <h2>Thinnest prior production retained</h2>
+        <p className="lede">
+          Share of last season’s production still on the roster via non-transfers — portal
+          replacement is under transfer dependency.
+        </p>
         <div className="card-grid">
           {data.thinnestReturning.map((row) => (
-            <Link key={row.team} to={`/preview/team?team=${encodeURIComponent(row.team)}&season=${season}`} className="card">
+            <Link key={row.team} to={`/season-preview/team?team=${encodeURIComponent(row.team)}&season=${season}`} className="card">
               <h3>{row.team}</h3>
               <p className="meta">{row.conference || "—"}</p>
               <div className="metric-row">
-                <Metric label="Offense" value={fmtPct(row.percent_offense_returning)} band={bandFromScore(row.percent_offense_returning)} />
-                <Metric label="Defense" value={fmtPct(row.percent_defense_returning)} band={bandFromScore(row.percent_defense_returning)} />
-                <Metric label="PPA" value={fmtPct(row.percent_ppa)} band={bandFromScore(row.percent_ppa)} />
+                <Metric label="Offense retained" value={fmtPct(row.percent_offense_returning)} band={bandFromScore(row.percent_offense_returning)} />
+                <Metric label="Defense retained" value={fmtPct(row.percent_defense_returning)} band={bandFromScore(row.percent_defense_returning)} />
+                <Metric label="PPA retained" value={fmtPct(row.percent_ppa)} band={bandFromScore(row.percent_ppa)} />
               </div>
             </Link>
           ))}
@@ -128,7 +134,7 @@ export default function PreviewOverview() {
         <p className="lede">How much of the roster’s prior usage now rides on portal arrivals.</p>
         <div className="card-grid">
           {data.transferDependent.map((row) => (
-            <Link key={row.team} to={`/preview/team?team=${encodeURIComponent(row.team)}&season=${season}`} className="card">
+            <Link key={row.team} to={`/season-preview/team?team=${encodeURIComponent(row.team)}&season=${season}`} className="card">
               <h3>{row.team}</h3>
               <div className="metric-row">
                 <Metric
@@ -155,7 +161,10 @@ export default function PreviewOverview() {
 
       <section className="section">
         <h2>Portal winners and losers</h2>
-        <p className="lede">Net prior production gained or lost through the portal (and draft exits on the loss side of continuity).</p>
+        <p className="lede">
+          Sorted by offense net (PPA units). Defense net uses tackle-weighted production —
+          different units, shown separately.
+        </p>
         <div className="split">
           <div>
             <h3 style={{ marginTop: 0 }}>Winners</h3>
@@ -163,12 +172,21 @@ export default function PreviewOverview() {
               {data.portalWinners.map((row) => (
                 <Link
                   key={row.team}
-                  to={`/preview/team?team=${encodeURIComponent(row.team)}&season=${season}`}
+                  to={`/season-preview/team?team=${encodeURIComponent(row.team)}&season=${season}`}
                   className="card"
                 >
                   <h3>{row.team}</h3>
                   <div className="metric-row">
-                    <Metric label="Net production" value={fmtNum(row.net_production_gained)} band="high" />
+                    <Metric
+                      label="Off net"
+                      value={fmtNum(row.net_offense_production_gained)}
+                      band={netProductionVerdict(row.net_offense_production_gained).band}
+                    />
+                    <Metric
+                      label="Def net"
+                      value={fmtNum(row.net_defense_production_gained)}
+                      band={netProductionVerdict(row.net_defense_production_gained).band}
+                    />
                     <Metric label="Net talent" value={fmtNum(row.net_talent_gained, 2)} />
                   </div>
                   <p className="meta" style={{ marginTop: "0.5rem" }}>
@@ -184,12 +202,21 @@ export default function PreviewOverview() {
               {data.portalLosers.map((row) => (
                 <Link
                   key={row.team}
-                  to={`/preview/team?team=${encodeURIComponent(row.team)}&season=${season}`}
+                  to={`/season-preview/team?team=${encodeURIComponent(row.team)}&season=${season}`}
                   className="card"
                 >
                   <h3>{row.team}</h3>
                   <div className="metric-row">
-                    <Metric label="Net production" value={fmtNum(row.net_production_gained)} band="low" />
+                    <Metric
+                      label="Off net"
+                      value={fmtNum(row.net_offense_production_gained)}
+                      band={netProductionVerdict(row.net_offense_production_gained).band}
+                    />
+                    <Metric
+                      label="Def net"
+                      value={fmtNum(row.net_defense_production_gained)}
+                      band={netProductionVerdict(row.net_defense_production_gained).band}
+                    />
                     <Metric label="Net talent" value={fmtNum(row.net_talent_gained, 2)} />
                   </div>
                   <p className="meta" style={{ marginTop: "0.5rem" }}>
@@ -227,7 +254,7 @@ export default function PreviewOverview() {
             </h3>
             <div className="team-chip-row">
               {teams.map((t) => (
-                <Link key={t} className="team-chip" to={`/preview/team?team=${encodeURIComponent(t)}&season=${season}`}>
+                <Link key={t} className="team-chip" to={`/season-preview/team?team=${encodeURIComponent(t)}&season=${season}`}>
                   {t}
                 </Link>
               ))}

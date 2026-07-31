@@ -1,23 +1,43 @@
 {{ config(alias='returning_production_team') }}
 
 /*
-    Team-level returning production for a preview season.
+    Team-level prior production retained for a Season Preview target season.
 
-    Prefer CFBD /player/returning when present for that season. Otherwise compute from the
-    constructed roster snapshot vs prior-season team totals.
+    Definition: share of last season's production still on the roster via non-transfer
+    players. Portal arrivals are NOT in the denominator — that belongs to transfer
+    dependency / net flows.
 
-    Restricted to FBS teams in silver_team_seasons (preview or prior season), matching
-    transfer_dependency / portal_team_ledger — otherwise FCS schools with no prior
-    production sort to the top of "thinnest returning" with all zeros.
+    CFBD /player/returning is used only when the team has a published roster for the
+    target season AND CFBD published a same-season returning row. Constructed rosters
+    always use the computed path so we do not pretend CFBD filled a gap it did not.
 
-    Offense returning = (pass_yds + rush_yds + rec_yds) returning / prior.
-    Defense returning = weighted (tackles + 2*TFL + 3*sacks + 2*INT) returning / prior.
+    Restricted to FBS teams in silver_team_seasons (target or prior season).
+
+    Offense retained = (pass_yds + rush_yds + rec_yds) returning / prior.
+    Defense retained = weighted (tackles + 2*(TFL − sacks) + 3*sacks + 2*INT) returning / prior.
 */
 
 with fbs as (
 
     select distinct season, team
     from {{ ref('silver_team_seasons') }}
+
+),
+
+team_roster_source as (
+
+    select
+        rost.season,
+        rost.team,
+        max(rost.roster_source) as roster_source
+    from {{ ref('gold_roster_snapshot') }} as rost
+    where exists (
+        select 1
+        from fbs
+        where fbs.team = rost.team
+          and fbs.season in (rost.season, rost.season - 1)
+    )
+    group by rost.season, rost.team
 
 ),
 
@@ -130,35 +150,84 @@ computed as (
         on ts.team = ret.team
        and ts.season = ret.season - 1
 
+),
+
+joined as (
+
+    select
+        x.*,
+        coalesce(rs.roster_source, 'constructed') as roster_source,
+        c.team is not null as has_cfbd,
+        c.percent_ppa as cfbd_percent_ppa,
+        c.percent_passing_ppa as cfbd_percent_passing_ppa,
+        c.percent_receiving_ppa as cfbd_percent_receiving_ppa,
+        c.percent_rushing_ppa as cfbd_percent_rushing_ppa,
+        c.usage as cfbd_percent_usage,
+        c.passing_usage as cfbd_percent_passing_usage,
+        c.receiving_usage as cfbd_percent_receiving_usage,
+        c.rushing_usage as cfbd_percent_rushing_usage
+    from computed as x
+    left join team_roster_source as rs
+        on rs.season = x.season
+       and rs.team = x.team
+    left join cfbd as c
+        on c.season = x.season
+       and c.team = x.team
+
 )
 
 select
-    coalesce(c.season, x.season) as season,
-    coalesce(c.team, x.team) as team,
-    coalesce(c.conference, x.conference) as conference,
-    coalesce(c.percent_ppa, x.percent_ppa) as percent_ppa,
-    coalesce(c.percent_passing_ppa, x.percent_passing) as percent_passing_ppa,
-    coalesce(c.percent_receiving_ppa, x.percent_receiving) as percent_receiving_ppa,
-    coalesce(c.percent_rushing_ppa, x.percent_rushing) as percent_rushing_ppa,
-    coalesce(c.usage, x.percent_usage) as percent_usage,
-    coalesce(c.passing_usage, x.percent_passing_attempts) as percent_passing_usage,
-    coalesce(c.receiving_usage, x.percent_receiving) as percent_receiving_usage,
-    coalesce(c.rushing_usage, x.percent_rushing) as percent_rushing_usage,
-    x.percent_production,
-    x.percent_passing,
-    x.percent_passing_attempts,
-    x.percent_offense_returning,
-    x.percent_defense_returning,
-    x.percent_tackles,
-    x.percent_tfl,
-    x.percent_sacks,
-    x.percent_interceptions,
-    x.percent_kicking,
-    x.returning_production,
-    x.returning_usage,
-    x.returning_ppa,
-    case when c.team is not null then 'cfbd' else 'computed' end as source
-from computed as x
-full outer join cfbd as c
-    on c.season = x.season
-   and c.team = x.team
+    season,
+    team,
+    conference,
+    -- CFBD PPA/usage only when the roster is published and CFBD has a same-season row.
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_ppa
+        else percent_ppa
+    end as percent_ppa,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_passing_ppa
+        else percent_passing
+    end as percent_passing_ppa,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_receiving_ppa
+        else percent_receiving
+    end as percent_receiving_ppa,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_rushing_ppa
+        else percent_rushing
+    end as percent_rushing_ppa,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_usage
+        else percent_usage
+    end as percent_usage,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_passing_usage
+        else percent_passing_attempts
+    end as percent_passing_usage,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_receiving_usage
+        else percent_receiving
+    end as percent_receiving_usage,
+    case
+        when roster_source = 'published' and has_cfbd then cfbd_percent_rushing_usage
+        else percent_rushing
+    end as percent_rushing_usage,
+    percent_production,
+    percent_passing,
+    percent_passing_attempts,
+    percent_offense_returning,
+    percent_defense_returning,
+    percent_tackles,
+    percent_tfl,
+    percent_sacks,
+    percent_interceptions,
+    percent_kicking,
+    returning_production,
+    returning_usage,
+    returning_ppa,
+    case
+        when roster_source = 'published' and has_cfbd then 'cfbd'
+        else 'computed'
+    end as source
+from joined

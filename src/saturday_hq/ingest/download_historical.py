@@ -45,7 +45,7 @@ def plan_domains(
 
     - "market" -> lines only. Mid-week refresh.
     - "weekly" -> game/rating domains, plus season-static on first in-season run.
-    - "preview" -> player-level Offseason Preview domains.
+    - "preview" -> player-level Season Preview domains.
     """
     if mode == "market":
         return list(MARKET_DOMAINS)
@@ -74,7 +74,7 @@ def plan_domains(
 
 
 def preview_years(today=None) -> List[int]:
-    """Years a preview pull should cover: upcoming season + prior completed season."""
+    """Years a Season Preview pull should cover: upcoming season + prior completed season."""
     upcoming = preview_season(today)
     return [upcoming - 1, upcoming]
 
@@ -118,7 +118,7 @@ def write_jsonl(path: str, records: list) -> int:
 def _tag_teams_fbs_year(records: list, year: int) -> list:
     """Inject year into /teams/fbs rows so season does not depend on the landing path.
 
-    Needed for offseason preview drops in July: landing_season() from dt=2026-07-30 would
+    Needed for Season Preview drops in July: landing_season() from dt=2026-07-30 would
     otherwise resolve to 2025.
     """
     tagged = []
@@ -274,7 +274,7 @@ def download_preview_to_volume(
     upcoming_season: Optional[int] = None,
     domains: Optional[Sequence[str]] = None,
 ) -> List[dict]:
-    """Offseason Preview pull: upcoming season + prior-season production domains.
+    """Season Preview pull: upcoming season + prior-season production domains.
 
     Writes under incremental/dt=YYYY-MM-DD/ like other refreshes. Prior-only domains
     (usage, stats, PPA, returning, prior rosters) are fetched for upcoming-1; portal,

@@ -1,8 +1,8 @@
 {{ config(alias='transfer_dependency') }}
 
 /*
-    How dependent a preview-season roster is on transfers.
-    Restricted to FBS teams in silver_team_seasons (preview or prior season).
+    How dependent a Season Preview roster is on transfers.
+    Restricted to FBS teams in silver_team_seasons (target or prior season).
 
     Scores:
       transfer_dependency_score — all position groups

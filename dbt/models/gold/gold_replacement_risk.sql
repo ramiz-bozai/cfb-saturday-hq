@@ -1,7 +1,7 @@
 {{ config(alias='replacement_risk') }}
 
 /*
-    Category-aware replacement risk callouts for the Preview tab.
+    Category-aware replacement risk callouts for the Season Preview tab.
 
     Departed production = portal exits + NFL draft/UDFA exits (year N = preview season).
     Primary metric by position group:

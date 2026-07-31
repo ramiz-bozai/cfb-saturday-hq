@@ -11,7 +11,7 @@ FBS college football intelligence on Databricks using [CollegeFootballData](http
 - Matchup model that does **not** train on betting lines
 - UI compares **model vs market**
 - Preseason + Monte Carlo playoff projections using published **2026 CFP** structure
-- Dashboards, Genie, and a React + Express Databricks App (Offseason Preview + slate/matchup)
+- Dashboards, Genie, and a React + Express Databricks App (Season Preview + slate/matchup)
 
 ## Who does what
 One handoff in each direction: `Python ingest → dbt build → Python score + serve`.
@@ -103,11 +103,12 @@ corrected score or a rescheduled game land later. `WEEK` stays `None` on purpose
 4. Review `docs/PRODUCT_IDEAS.md` for the fan-product roadmap
 
 ## What the stats mean
-`docs/DATA_DICTIONARY.md` covers every stat column: what it measures, which direction is good,
-the range it actually occupies in this data, and where it will mislead you. Worth reading before
-writing a query against SP+ or the market columns, because several conventions are counter to
-intuition — `sp_defense` and `ppa_defense` are better when lower, `sp_sos` is higher for *easier*
-schedules, and a negative `market_spread` means the home team is favoured.
+`docs/DATA_DICTIONARY.md` is the single reference for every stat: CFBD columns (what they
+measure, direction, ranges) and Saturday HQ formulas (production, continuity, transfer
+dependency, de-vig, model, projections). Worth reading before querying SP+, market, or Season Preview
+metrics — several conventions are counter to intuition (`sp_defense` / `ppa_defense` better when
+lower; `sp_sos` higher for *easier* schedules; negative `market_spread` = home favored; defense
+“usage” is tackle-weighted production share, not snaps).
 
 The same definitions are attached to the tables as Unity Catalog column comments, so Genie and
 Catalog Explorer show them inline. dbt applies them for its own models via `persist_docs`; the
@@ -118,7 +119,7 @@ tables Python writes get theirs from `src/saturday_hq/table_docs.py`.
 cfb-saturday-hq/
   app/                 # Databricks App (React + Express)
   dbt/                 # dbt project: models, macros, and the committed profiles.yml
-  docs/                # Step-by-step, Genie instructions, data dictionary
+  docs/                # Step-by-step, Genie, data dictionary (incl. calculated metrics)
   notebooks/           # Python steps, 00 → 05; dbt runs between 01/02 and between 04/05
   resources/           # Databricks Asset Bundle jobs
   src/saturday_hq/     # Python package used by notebooks

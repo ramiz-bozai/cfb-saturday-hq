@@ -42,7 +42,7 @@ const ROSTER_SOURCE_TIP = {
   published: "Official roster published by CFBD for this season.",
 } as const;
 
-export default function PreviewTeam() {
+export default function SeasonPreviewTeam() {
   const [params, setParams] = useSearchParams();
   const [teams, setTeams] = useState<string[]>([]);
   const [season, setSeason] = useState<number>(() => {
@@ -146,13 +146,17 @@ export default function PreviewTeam() {
           </div>
 
           <section className="section">
-            <h2>Returning production</h2>
+            <h2>Prior production retained</h2>
+            <p className="lede">
+              Share of last season’s production still on the roster via non-transfers. Portal
+              arrivals are under transfer dependency and the portal ledger.
+            </p>
             <div className="card returning-card">
               <div className="returning-headline">
-                <Metric label="Offense returning" value={fmtPct(ret?.percent_offense_returning)} band={bandFromScore(ret?.percent_offense_returning)} />
-                <Metric label="Defense returning" value={fmtPct(ret?.percent_defense_returning)} band={bandFromScore(ret?.percent_defense_returning)} />
-                <Metric label="PPA returning" value={fmtPct(ret?.percent_ppa)} band={bandFromScore(ret?.percent_ppa)} />
-                <Metric label="Sacks returning" value={fmtPct(ret?.percent_sacks)} band={bandFromScore(ret?.percent_sacks)} />
+                <Metric label="Offense retained" value={fmtPct(ret?.percent_offense_returning)} band={bandFromScore(ret?.percent_offense_returning)} />
+                <Metric label="Defense retained" value={fmtPct(ret?.percent_defense_returning)} band={bandFromScore(ret?.percent_defense_returning)} />
+                <Metric label="PPA retained" value={fmtPct(ret?.percent_ppa)} band={bandFromScore(ret?.percent_ppa)} />
+                <Metric label="Sacks retained" value={fmtPct(ret?.percent_sacks)} band={bandFromScore(ret?.percent_sacks)} />
               </div>
               <div className="returning-groups">
                 <div className="returning-group">
@@ -268,11 +272,18 @@ export default function PreviewTeam() {
                 </div>
                 <div className="metric-row ledger-metrics">
                   <Metric
-                    label="Net production"
-                    verdict={netProductionVerdict(led?.net_production_gained).verdict}
-                    value={fmtNum(led?.net_production_gained)}
-                    band={netProductionVerdict(led?.net_production_gained).band}
-                    hint="Prior production gained minus lost through the portal."
+                    label="Off net"
+                    verdict={netProductionVerdict(led?.net_offense_production_gained).verdict}
+                    value={fmtNum(led?.net_offense_production_gained)}
+                    band={netProductionVerdict(led?.net_offense_production_gained).band}
+                    hint="Prior offense production (PPA-based) gained minus lost via portal/draft."
+                  />
+                  <Metric
+                    label="Def net"
+                    verdict={netProductionVerdict(led?.net_defense_production_gained).verdict}
+                    value={fmtNum(led?.net_defense_production_gained)}
+                    band={netProductionVerdict(led?.net_defense_production_gained).band}
+                    hint="Prior defense production (tackle-weighted) gained minus lost via portal/draft."
                   />
                   <Metric
                     label="Net talent"
@@ -367,7 +378,7 @@ export default function PreviewTeam() {
                   <dt>Production</dt>
                   <dd>
                     <span>Offense: total PPA, or usage × 50.</span>
-                    <span>Defense (DL/LB/DB): tackles + 2×TFL + 3×sacks + 2×INT.</span>
+                    <span>Defense (DL/LB/DB): tackles + 2×(TFL − sacks) + 3×sacks + 2×INT.</span>
                   </dd>
                 </div>
                 <div>

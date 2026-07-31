@@ -1,12 +1,16 @@
 {{ config(alias='portal_team_ledger') }}
 
 /*
-    Team-level portal ledger for FBS schools only (preview season membership via
-    silver_team_seasons; falls back to prior season if preview year has no row yet).
+    Team-level portal ledger for FBS schools only (Season Preview membership via
+    silver_team_seasons; falls back to prior season if the target year has no row yet).
 
     Net talent is an average quality delta (avg talent in − avg talent out), not a sum
     of player talent scores — otherwise big portal classes look like “talent losses”
     just from volume.
+
+    Net production is split by side so offense (PPA-based) and defense (tackle-weighted)
+    are never summed into one fan-facing currency. net_production_gained remains the
+    unscoped sum for debugging only.
 */
 
 with fbs as (
@@ -41,6 +45,20 @@ counts as (
         sum(depth_additions) as depth_additions,
         sum(impact_losses) as impact_losses,
         sum(depth_losses) as depth_losses,
+        sum(
+            case
+                when position_group in ('QB', 'RB', 'WR/TE', 'OL')
+                then net_production_gained
+                else 0.0
+            end
+        ) as net_offense_production_gained,
+        sum(
+            case
+                when position_group in ('DL', 'LB', 'DB')
+                then net_production_gained
+                else 0.0
+            end
+        ) as net_defense_production_gained,
         sum(net_production_gained) as net_production_gained,
         sum(projected_starters_added) as projected_starters_added,
         sum(projected_starters_lost) as projected_starters_lost,
@@ -121,6 +139,8 @@ select
     c.depth_additions,
     c.impact_losses,
     c.depth_losses,
+    c.net_offense_production_gained,
+    c.net_defense_production_gained,
     c.net_production_gained,
     case
         when t.talent_added is null and t.talent_lost is null then null

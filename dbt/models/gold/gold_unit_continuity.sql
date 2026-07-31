@@ -1,7 +1,7 @@
 {{ config(alias='unit_continuity') }}
 
 /*
-    Continuity grades by team × position group for a preview season.
+    Continuity grades by team × position group for a Season Preview target season.
 
     Talent fields:
       recruiting_talent_returning — avg talent_score of non-transfer roster players
@@ -143,26 +143,39 @@ select
     r.team,
     r.position_group,
     r.returning_players,
-    case
-        when coalesce(pg.production_score, 0) > 1
-        then r.returning_production / nullif(pg.production_score, 0)
-        else coalesce(
-            coalesce(r.returning_players, 0)
-                / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
-            0.0
+    -- Clamp to [0, 1]: signed production can exceed 100% when departures are net-negative.
+    least(
+        1.0,
+        greatest(
+            0.0,
+            case
+                when coalesce(pg.production_score, 0) > 1
+                then r.returning_production / nullif(pg.production_score, 0)
+                else coalesce(
+                    coalesce(r.returning_players, 0)
+                        / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
+                    0.0
+                )
+            end
         )
-    end as production_returning_pct,
-    case
-        when coalesce(pg.usage_overall, 0) > 0.05
-        then r.returning_usage / nullif(pg.usage_overall, 0)
-        when coalesce(pg.production_score, 0) > 1
-        then r.returning_production / nullif(pg.production_score, 0)
-        else coalesce(
-            coalesce(r.returning_players, 0)
-                / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
-            0.0
+    ) as production_returning_pct,
+    least(
+        1.0,
+        greatest(
+            0.0,
+            case
+                when coalesce(pg.usage_overall, 0) > 0.05
+                then r.returning_usage / nullif(pg.usage_overall, 0)
+                when coalesce(pg.production_score, 0) > 1
+                then r.returning_production / nullif(pg.production_score, 0)
+                else coalesce(
+                    coalesce(r.returning_players, 0)
+                        / nullif(coalesce(r.returning_players, 0) + coalesce(pl.transfer_departures, 0), 0),
+                    0.0
+                )
+            end
         )
-    end as usage_returning_pct,
+    ) as usage_returning_pct,
     r.returning_avg_stars,
     r.avg_class_year as experience,
     coalesce(pl.transfer_departures, 0) as transfer_departures,
