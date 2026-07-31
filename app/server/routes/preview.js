@@ -1,7 +1,14 @@
 import { Router } from "express";
-import { gold, query, esc, previewSeason } from "../db.js";
+import { gold, silver, query, esc, previewSeason } from "../db.js";
 
 const router = Router();
+
+function teamLogoUrl(logos) {
+  const list = Array.isArray(logos) ? logos : [];
+  const preferred =
+    list.find((u) => typeof u === "string" && u && !u.includes("-dark")) || list[0] || null;
+  return preferred ? String(preferred).replace(/^http:\/\//i, "https://") : null;
+}
 
 router.get("/meta", (_req, res) => {
   res.json({ previewSeason: previewSeason() });
@@ -128,7 +135,7 @@ router.get("/team/:team", async (req, res, next) => {
     const team = String(req.params.team);
     const safe = esc(team);
 
-    const [returning, units, ledger, dependency, risks, moves, qbs] = await Promise.all([
+    const [returning, units, ledger, dependency, risks, moves, qbs, teamMeta] = await Promise.all([
       query(`
         SELECT *
         FROM ${gold("returning_production_team")}
@@ -180,6 +187,12 @@ router.get("/team/:team", async (req, res, next) => {
         WHERE season = ${season} AND team = '${safe}'
         ORDER BY qb_rank ASC
       `),
+      query(`
+        SELECT logos, color, alternate_color, abbreviation, conference
+        FROM ${silver("teams")}
+        WHERE team = '${safe}'
+        LIMIT 1
+      `),
     ]);
 
     const rosterSource = await query(`
@@ -188,9 +201,14 @@ router.get("/team/:team", async (req, res, next) => {
       WHERE season = ${season} AND team = '${safe}'
     `);
 
+    const meta = teamMeta[0] || {};
     res.json({
       season,
       team,
+      logoUrl: teamLogoUrl(meta.logos),
+      teamColor: meta.color || null,
+      abbreviation: meta.abbreviation || null,
+      conference: meta.conference || returning[0]?.conference || null,
       rosterSource: rosterSource[0]?.roster_source || "constructed",
       returning: returning[0] || null,
       units,

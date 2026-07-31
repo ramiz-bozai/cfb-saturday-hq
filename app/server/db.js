@@ -35,10 +35,15 @@ loadEnvFile(path.resolve(__dirname, "../.env"));
 
 const CATALOG = process.env.SATURDAY_HQ_CATALOG || "cfb_saturday_hq_prod";
 const GOLD = process.env.SATURDAY_HQ_GOLD_SCHEMA || "cfb_gold";
+const SILVER = process.env.SATURDAY_HQ_SILVER_SCHEMA || "cfb_silver";
 const APP = process.env.SATURDAY_HQ_APP_SCHEMA || "cfb_app";
 
 export function gold(table) {
   return `${CATALOG}.${GOLD}.${table}`;
+}
+
+export function silver(table) {
+  return `${CATALOG}.${SILVER}.${table}`;
 }
 
 export function appTable(table) {

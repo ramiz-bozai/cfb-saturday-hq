@@ -20,6 +20,7 @@ import { Metric, Pill } from "../components/ui";
 type TeamData = {
   season: number;
   team: string;
+  logoUrl: string | null;
   rosterSource: string;
   roomClass: string | null;
   returning: any;
@@ -121,6 +122,16 @@ export default function PreviewTeam() {
       {!loading && data && (
         <>
           <div className="hero-team">
+            {data.logoUrl && (
+              <img
+                className="team-logo"
+                src={data.logoUrl}
+                alt=""
+                width={72}
+                height={72}
+                loading="lazy"
+              />
+            )}
             <h1>{data.team}</h1>
             <Pill
               tone="muted"
