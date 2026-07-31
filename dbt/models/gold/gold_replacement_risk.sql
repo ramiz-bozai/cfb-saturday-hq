@@ -3,7 +3,7 @@
 /*
     Category-aware replacement risk callouts for the Preview tab.
 
-    Departed production = portal exits + NFL draft picks (draft year = preview season).
+    Departed production = portal exits + NFL draft/UDFA exits (year N = preview season).
     Primary metric by position group:
       QB → prior pass attempts
       WR/TE → receiving yards
@@ -68,9 +68,9 @@ portal_departed as (
 draft_departed as (
 
     select
-        d.draft_year as season,
-        coalesce(ps.team, d.college_team) as team,
-        coalesce(ps.position_group, d.position_group) as position_group,
+        x.season,
+        coalesce(ps.team, x.college_team) as team,
+        coalesce(ps.position_group, x.position_group) as position_group,
         coalesce(ps.pass_att, 0.0) as prior_pass_att,
         coalesce(ps.rec_yds, 0.0) as prior_rec_yds,
         coalesce(ps.rush_yds, 0.0) as prior_rush_yds,
@@ -80,18 +80,18 @@ draft_departed as (
         coalesce(ps.interceptions, 0.0) as prior_interceptions,
         coalesce(ps.kick_points, 0.0) as prior_kick_points,
         coalesce(ps.production_score, 0.0) as prior_production_score,
-        d.athlete_id
-    from {{ ref('silver_draft_picks') }} as d
+        x.athlete_id
+    from {{ nfl_college_exits() }} as x
     left join {{ ref('gold_player_season') }} as ps
-        on ps.athlete_id = d.athlete_id
-       and ps.season = d.draft_year - 1
-    where d.athlete_id is not null
-      -- Avoid double-count when a draftee also appears as a portal departure.
+        on ps.athlete_id = x.athlete_id
+       and ps.season = x.season - 1
+    where x.athlete_id is not null
+      -- Avoid double-count when an NFL exit also appears as a portal departure.
       and not exists (
           select 1
           from portal_departed as p
-          where p.season = d.draft_year
-            and p.athlete_id = d.athlete_id
+          where p.season = x.season
+            and p.athlete_id = x.athlete_id
       )
 
 ),

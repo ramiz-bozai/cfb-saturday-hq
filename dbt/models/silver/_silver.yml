@@ -287,3 +287,8 @@ models:
         description: Composite score of one incoming signing class. Higher is better; median ~171.
       - name: recruiting_rank
         description: Rank of that signing class, 1 = best.
+
+  - name: silver_nfl_udfa
+    description: >
+      nflverse UDFAs (rookie_year N exits college season N). athlete_id filled when the prior
+      CFBD roster uniquely matches name key + college; null rows are unmatched residuals.

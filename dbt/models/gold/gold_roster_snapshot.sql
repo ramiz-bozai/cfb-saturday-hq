@@ -6,7 +6,7 @@
     Prefer a published CFBD roster. When CFBD has not published one yet (typical before camp),
     construct it from the prior-season roster
       minus portal departures
-      minus NFL draft picks (draft_year = target season)
+      minus NFL draft picks and matched UDFAs (year N exits college season N)
       plus portal arrivals.
 */
 
@@ -69,9 +69,9 @@ departures as (
 drafted as (
 
     select
-        draft_year as season,
+        season,
         athlete_id
-    from {{ ref('silver_draft_picks') }}
+    from {{ nfl_college_exits() }}
     where athlete_id is not null
 
 ),

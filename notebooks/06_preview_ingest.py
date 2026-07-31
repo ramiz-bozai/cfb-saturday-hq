@@ -52,4 +52,19 @@ manifest_df = spark.createDataFrame(manifest)
 display(manifest_df.orderBy("domain", "year"))
 if "error" in manifest_df.columns:
     print("errors:", manifest_df.filter("error is not null").count())
-print("dbt task should build player bronze → gold next")
+print("dbt task should build player bronze → gold next (include bronze_nfl_udfa+)")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## nflverse UDFAs
+# MAGIC
+# MAGIC Undrafted free agents are not in CFBD `/draft/picks`. Requires `nflreadpy` on the
+# MAGIC cluster. Lands under `manual/nfl_udfa/` so constructed rosters subtract matched athletes.
+
+# COMMAND ----------
+
+from saturday_hq.ingest.nfl_udfa import download_udfa_to_volume
+
+udfa_manifest = download_udfa_to_volume(config, rookie_year=upcoming)
+print(udfa_manifest)
