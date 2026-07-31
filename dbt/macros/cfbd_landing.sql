@@ -83,3 +83,23 @@ select
 from {{ cfbd_read(domain, 'incremental') }}
 {%- endif %}
 {%- endmacro %}
+
+
+{#
+    Non-CFBD drops under manual/<domain>/year=YYYY/*.jsonl (e.g. nflverse UDFAs).
+#}
+{% macro manual_read(domain) -%}
+    {%- set root = var('landing_root') -%}
+    {%- set path = root ~ '/manual/' ~ domain ~ '/*/*.jsonl' -%}
+    read_files('{{ path }}', format => 'json')
+{%- endmacro %}
+
+
+{% macro manual_union(domain, projection) -%}
+select
+    {{ projection }},
+    _metadata.file_path as _source_path,
+    'manual' as _ingest_mode,
+    current_timestamp() as _ingested_at
+from {{ manual_read(domain) }}
+{%- endmacro %}

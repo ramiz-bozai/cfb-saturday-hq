@@ -71,3 +71,8 @@ models:
 
   - name: bronze_draft_picks
     description: CFBD /draft/picks NFL draft results (collegeAthleteId links to rosters).
+
+  - name: bronze_nfl_udfa
+    description: >
+      nflverse undrafted free agents (rookie season, null draft_number) landed under
+      manual/nfl_udfa/. Resolved to CFBD athlete_id in silver.

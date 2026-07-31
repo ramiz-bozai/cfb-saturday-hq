@@ -87,11 +87,11 @@ portal_losses as (
 
         union all
 
-        -- NFL draft exits (not in portal) still leave production holes.
+        -- NFL exits (draft + matched UDFA) not already in portal still leave production holes.
         select
-            d.draft_year as season,
-            coalesce(ps.team, d.college_team) as team,
-            coalesce(ps.position_group, d.position_group) as position_group,
+            x.season,
+            coalesce(ps.team, x.college_team) as team,
+            coalesce(ps.position_group, x.position_group) as position_group,
             case
                 when coalesce(ps.usage_overall, 0.0) >= 0.15
                   or coalesce(ps.production_score, 0.0) >= 15.0
@@ -102,17 +102,17 @@ portal_losses as (
             coalesce(ps.usage_overall, 0.0) >= 0.25
                 or coalesce(ps.production_score, 0.0) >= 40.0 as projected_starter,
             ps.talent_score as talent_score
-        from {{ ref('silver_draft_picks') }} as d
+        from {{ nfl_college_exits() }} as x
         left join {{ ref('gold_player_season') }} as ps
-            on ps.athlete_id = d.athlete_id
-           and ps.season = d.draft_year - 1
-        where d.athlete_id is not null
-          and coalesce(ps.position_group, d.position_group) not in ('OTHER')
+            on ps.athlete_id = x.athlete_id
+           and ps.season = x.season - 1
+        where x.athlete_id is not null
+          and coalesce(ps.position_group, x.position_group) not in ('OTHER')
           and not exists (
               select 1
               from {{ ref('gold_portal_moves') }} as m
-              where m.season = d.draft_year
-                and m.athlete_id = d.athlete_id
+              where m.season = x.season
+                and m.athlete_id = x.athlete_id
                 and m.origin is not null
           )
     )
