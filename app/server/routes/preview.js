@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { gold, silver, query, esc, previewSeason, createTtlCache } from "../db.js";
+import { getScheduleDifficulty } from "../scheduleDifficulty.js";
 
 const router = Router();
 
@@ -168,7 +169,7 @@ router.get("/team/:team", async (req, res, next) => {
 });
 
 function teamCacheKey(season, team) {
-  return `v8::${season}::${team}`;
+  return `v9::${season}::${team}`;
 }
 
 async function loadTeamPayload(season, team) {
@@ -346,6 +347,8 @@ async function loadTeamPayload(season, team) {
     return Number(a.recruiting_rank ?? 99999) - Number(b.recruiting_rank ?? 99999);
   });
 
+  const scheduleDifficulty = await getScheduleDifficulty(team, season);
+
   const payload = {
     season,
     team,
@@ -362,6 +365,7 @@ async function loadTeamPayload(season, team) {
           gamesPlayed: prior.games_played,
         }
       : null,
+    scheduleDifficulty,
     returning: returning || null,
     units,
     ledger: ledger || null,

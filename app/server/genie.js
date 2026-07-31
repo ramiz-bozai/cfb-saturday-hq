@@ -8,8 +8,10 @@ import {
   gold,
   query,
   previewSeason,
-  silver,
 } from "./db.js";
+import { getScheduleCompetitionNote } from "./scheduleDifficulty.js";
+
+export { getScheduleCompetitionNote, getScheduleDifficulty } from "./scheduleDifficulty.js";
 
 const SPACE_ID =
   process.env.GENIE_SPACE_ID || "01f18c7f92fa18cbbdb18f2248cbec37";
@@ -203,74 +205,6 @@ export async function getReturningQbNote(team, season) {
       .map((r) => `${r.first_name || ""} ${r.last_name || ""}`.trim())
       .filter(Boolean)
       .join(" and ");
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Summarize upcoming schedule difficulty from silver games + prior-season SP+.
- * Returns null when the season's schedule is not loaded yet (e.g. 2026 today).
- */
-export async function getScheduleCompetitionNote(team, season) {
-  const safeTeam = esc(team);
-  const priorSeason = Number(season) - 1;
-  try {
-    const rows = await query(`
-      WITH sched AS (
-        SELECT
-          CASE WHEN g.home_team = '${safeTeam}' THEN g.away_team ELSE g.home_team END AS opponent,
-          CASE WHEN g.home_team = '${safeTeam}' THEN g.away_conference ELSE g.home_conference END AS opp_conference,
-          g.week,
-          g.start_date
-        FROM ${silver("games")} AS g
-        WHERE g.season = ${Number(season)}
-          AND g.season_type = 'regular'
-          AND (g.home_team = '${safeTeam}' OR g.away_team = '${safeTeam}')
-      ),
-      opp_sp AS (
-        SELECT team, sp_overall, sp_rank
-        FROM ${silver("sp_plus")}
-        WHERE season = ${priorSeason}
-      )
-      SELECT
-        COUNT(*) AS games,
-        COUNT(s.sp_overall) AS rated_opponents,
-        AVG(s.sp_overall) AS avg_opp_sp,
-        MIN(s.sp_overall) AS toughest_opp_sp,
-        MAX_BY(sc.opponent, COALESCE(s.sp_overall, -999)) AS toughest_opponent,
-        SORT_ARRAY(COLLECT_SET(sc.opp_conference)) AS conferences
-      FROM sched AS sc
-      LEFT JOIN opp_sp AS s ON s.team = sc.opponent
-    `);
-    const row = rows[0];
-    const games = Number(row?.games || 0);
-    if (!games) return null;
-
-    const rated = Number(row?.rated_opponents || 0);
-    const avgSp = row?.avg_opp_sp != null ? Number(row.avg_opp_sp) : null;
-    const toughest = row?.toughest_opponent || null;
-    const confs = Array.isArray(row?.conferences)
-      ? row.conferences.filter(Boolean)
-      : [];
-
-    const parts = [`${games} regular-season games`];
-    if (confs.length) parts.push(`conferences on the slate: ${confs.join(", ")}`);
-    if (rated > 0 && avgSp != null && Number.isFinite(avgSp)) {
-      const band =
-        avgSp >= 10
-          ? "very hard"
-          : avgSp >= 3
-            ? "above-average"
-            : avgSp >= -3
-              ? "mixed / middle-of-the-pack"
-              : "comparatively softer";
-      parts.push(
-        `avg prior-season (${priorSeason}) SP+ of rated opponents ≈ ${avgSp.toFixed(1)} (${band})`
-      );
-    }
-    if (toughest) parts.push(`toughest rated opponent by prior SP+: ${toughest}`);
-    return parts.join("; ");
   } catch {
     return null;
   }
