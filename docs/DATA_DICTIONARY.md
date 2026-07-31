@@ -498,6 +498,16 @@ team marts.
 | Net production | &gt;5 Gained, &lt;−5 Lost, else Even |
 | Net talent | &gt;0.02 Gained, &lt;−0.02 Lost, else Even |
 
+### Metric views (Genie)
+
+| UC name | Grain | Role |
+|---|---|---|
+| `cfb_gold.mv_season_preview_team` | team × season | Returning %, transfer dependency, portal ledger |
+| `cfb_gold.mv_unit_continuity` | team × position_group × season | Continuity score, unit flows, departed share |
+
+Built by dbt (`materialized='metric_view'`). Query with `MEASURE(...)`, e.g.
+`SELECT team, MEASURE(transfer_dependency_score) FROM cfb_gold.mv_season_preview_team WHERE season = 2026 GROUP BY team`.
+
 ---
 
 ## Identity and outcome columns
@@ -542,6 +552,7 @@ team marts.
 | Continuity / ledger | `gold_unit_continuity`, `gold_portal_team_ledger`, `gold_returning_production_team` |
 | Transfer dependency | `gold_transfer_dependency` |
 | Replacement / QB | `gold_replacement_risk`, `gold_qb_room` |
+| Season Preview metric views | `mv_season_preview_team`, `mv_unit_continuity` |
 | Matchup model | `src/saturday_hq/ml/train.py` |
 | Projections / CFP | `src/saturday_hq/projections/simulator.py`, `cfp_rules.py` |
 | Briefs | `src/saturday_hq/briefs/generate.py` |
