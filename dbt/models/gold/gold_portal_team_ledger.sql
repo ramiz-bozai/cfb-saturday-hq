@@ -89,33 +89,14 @@ talent_moves as (
 
         select
             season,
-            origin as team,
+            team,
             'out' as side,
             talent_score
-        from {{ ref('gold_portal_moves') }}
-        where origin is not null
-          and (destination is null or destination <> origin)
-
-        union all
-
-        select
-            x.season,
-            coalesce(ps.team, x.college_team) as team,
-            'out' as side,
-            ps.talent_score as talent_score
-        from {{ nfl_college_exits() }} as x
-        left join {{ ref('gold_player_season') }} as ps
-            on ps.athlete_id = x.athlete_id
-           and ps.season = x.season - 1
-        where x.athlete_id is not null
-          and coalesce(ps.position_group, x.position_group) not in ('OTHER')
-          and not exists (
-              select 1
-              from {{ ref('gold_portal_moves') }} as m
-              where m.season = x.season
-                and m.athlete_id = x.athlete_id
-                and m.origin is not null
-          )
+        from {{ ref('gold_departures') }}
+        -- Match prior ledger behavior: portal OTHER outs counted in the talent avg;
+        -- NFL OTHER outs did not (they were filtered in the old nfl_college_exits branch).
+        where departure_type = 'portal'
+           or position_group not in ('OTHER')
     )
     where team is not null
 

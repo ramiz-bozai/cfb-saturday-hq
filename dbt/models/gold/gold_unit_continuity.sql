@@ -72,58 +72,8 @@ portal_losses as (
         sum(prior_production_score) as departed_production,
         sum(case when projected_starter then 1 else 0 end) as projected_starters_lost,
         avg(talent_score) as talent_lost
-    from (
-        select
-            season,
-            origin as team,
-            position_group,
-            impact_class,
-            prior_production_score,
-            projected_starter,
-            talent_score
-        from {{ ref('gold_portal_moves') }}
-        where origin is not null
-          and (destination is null or destination <> origin)
-
-        union all
-
-        -- NFL exits (draft + matched UDFA) not already in portal still leave production holes.
-        select
-            x.season,
-            coalesce(ps.team, x.college_team) as team,
-            coalesce(ps.position_group, x.position_group) as position_group,
-            {{ preview_impact_class(
-                "coalesce(ps.position_group, x.position_group)",
-                'ps.usage_overall',
-                'ps.production_score',
-                'ps.talent_score',
-                'ps.stars',
-                'ps.athlete_id is not null'
-            ) }} as impact_class,
-            coalesce(ps.production_score, 0.0) as prior_production_score,
-            {{ preview_projected_starter(
-                "coalesce(ps.position_group, x.position_group)",
-                'ps.usage_overall',
-                'ps.production_score',
-                'ps.talent_score',
-                'ps.stars',
-                'ps.athlete_id is not null'
-            ) }} as projected_starter,
-            ps.talent_score as talent_score
-        from {{ nfl_college_exits() }} as x
-        left join {{ ref('gold_player_season') }} as ps
-            on ps.athlete_id = x.athlete_id
-           and ps.season = x.season - 1
-        where x.athlete_id is not null
-          and coalesce(ps.position_group, x.position_group) not in ('OTHER')
-          and not exists (
-              select 1
-              from {{ ref('gold_portal_moves') }} as m
-              where m.season = x.season
-                and m.athlete_id = x.athlete_id
-                and m.origin is not null
-          )
-    )
+    from {{ ref('gold_departures') }}
+    where position_group not in ('OTHER')
     group by season, team, position_group
 
 ),

@@ -466,11 +466,13 @@ Critical unit = `replacement_risk` in (`high`, `elevated`) **and** the unit adde
 
 ### Replacement risk callouts (`gold_replacement_risk`)
 
-Surfaces high/elevated risk, continuity ≤ 40, or departed share ≥ 40%. Unit-specific “what left”
-metric: QB pass att; WR/TE rec yds; RB rush yds; DL sacks; LB tackles; DB INTs if prior group
-INTs ≥ 2 else tackles; ST kick points; OL/other production score.
+FBS only (target or prior season in `silver_team_seasons`), same gate as other Season Preview
+team marts. Surfaces high/elevated risk, continuity ≤ 40, or departed share ≥ 40%. Unit-specific
+“what left” metric: QB pass att; WR/TE rec yds; RB rush yds; DL sacks; LB tackles; DB INTs if
+prior group INTs ≥ 2 else tackles; ST kick points; OL/other production score.
 `departed_share` = departed / prior. Best returner ranked with a unit-specific stat (DB:
-`10×INT + tackles`).
+`10×INT + tackles`). When the unit has no non-transfer players left, `best_returner` is null and
+the callout ends with `; no returning production at this unit`.
 
 ### QB room (`gold_qb_room`)
 

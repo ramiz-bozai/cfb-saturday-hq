@@ -292,3 +292,56 @@ models:
     description: >
       nflverse UDFAs (rookie_year N exits college season N). athlete_id filled when the prior
       CFBD roster uniquely matches name key + college; null rows are unmatched residuals.
+    columns:
+      - name: first_name
+        tests: [not_null]
+      - name: last_name
+        tests: [not_null]
+      - name: display_name
+        tests: [not_null]
+
+  - name: silver_player_usage
+    description: CFBD player usage rates by season, athlete, and team.
+    columns:
+      - name: player_name
+        tests: [not_null]
+
+  - name: silver_player_season_stats
+    description: CFBD player season counting stats (passing, rushing, receiving, defense, etc.).
+    columns:
+      - name: player_name
+        tests: [not_null]
+
+  - name: silver_ppa_players_season
+    description: CFBD player-season predicted points added.
+    columns:
+      - name: player_name
+        tests: [not_null]
+
+  - name: silver_rosters
+    description: CFBD team rosters with position groups and name keys.
+    columns:
+      - name: first_name
+        tests: [not_null]
+      - name: last_name
+        tests: [not_null]
+
+  - name: silver_player_portal
+    description: Transfer portal entries (same-school / withdrawn filtered out).
+    columns:
+      - name: first_name
+        tests: [not_null]
+      - name: last_name
+        tests: [not_null]
+
+  - name: silver_draft_picks
+    description: NFL draft picks leaving college before draft_year season.
+    columns:
+      - name: player_name
+        tests: [not_null]
+
+  - name: silver_recruiting_players
+    description: Individual recruiting player records.
+    columns:
+      - name: player_name
+        tests: [not_null]

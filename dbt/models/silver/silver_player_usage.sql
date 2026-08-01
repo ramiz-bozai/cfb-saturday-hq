@@ -24,6 +24,7 @@ with typed as (
     where season is not null
       and athlete_id is not null
       and team is not null
+      and nullif(trim(player_name), '') is not null
 
 )
 

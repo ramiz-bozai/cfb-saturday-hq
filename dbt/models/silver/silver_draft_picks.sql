@@ -31,6 +31,7 @@ with typed as (
     from {{ ref('bronze_draft_picks') }}
     where draft_year is not null
       and athlete_id is not null
+      and nullif(trim(player_name), '') is not null
 
 )
 

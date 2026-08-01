@@ -21,6 +21,7 @@ with typed as (
       and team is not null
       and category is not null
       and stat_type is not null
+      and nullif(trim(player_name), '') is not null
 
 )
 

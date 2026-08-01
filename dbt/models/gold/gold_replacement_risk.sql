@@ -3,6 +3,8 @@
 /*
     Category-aware replacement risk callouts for the Season Preview tab.
 
+    FBS only (silver_team_seasons; target or prior season), matching other Season Preview marts.
+
     Departed production = portal exits + NFL draft/UDFA exits (year N = preview season).
     Primary metric by position group:
       QB → prior pass attempts
@@ -13,12 +15,28 @@
       DB → interceptions (tackles fallback when INT thin)
       ST → kick points
       OL → production score
+
+    best_returner is null when the unit has no non-transfer players left on the roster;
+    the callout says so explicitly rather than omitting the clause.
 */
 
-with continuity as (
+with fbs as (
 
-    select *
-    from {{ ref('gold_unit_continuity') }}
+    select distinct season, team
+    from {{ ref('silver_team_seasons') }}
+
+),
+
+continuity as (
+
+    select uc.*
+    from {{ ref('gold_unit_continuity') }} as uc
+    where exists (
+        select 1
+        from fbs
+        where fbs.team = uc.team
+          and fbs.season in (uc.season, uc.season - 1)
+    )
 
 ),
 
@@ -43,59 +61,6 @@ prior_group_metrics as (
 
 ),
 
-portal_departed as (
-
-    select
-        season,
-        origin as team,
-        position_group,
-        coalesce(prior_pass_att, 0.0) as prior_pass_att,
-        coalesce(prior_rec_yds, 0.0) as prior_rec_yds,
-        coalesce(prior_rush_yds, 0.0) as prior_rush_yds,
-        coalesce(prior_sacks, 0.0) as prior_sacks,
-        coalesce(prior_tfl, 0.0) as prior_tfl,
-        coalesce(prior_tackles, 0.0) as prior_tackles,
-        coalesce(prior_interceptions, 0.0) as prior_interceptions,
-        coalesce(prior_kick_points, 0.0) as prior_kick_points,
-        coalesce(prior_production_score, 0.0) as prior_production_score,
-        athlete_id
-    from {{ ref('gold_portal_moves') }}
-    where origin is not null
-      and (destination is null or destination <> origin)
-
-),
-
-draft_departed as (
-
-    select
-        x.season,
-        coalesce(ps.team, x.college_team) as team,
-        coalesce(ps.position_group, x.position_group) as position_group,
-        coalesce(ps.pass_att, 0.0) as prior_pass_att,
-        coalesce(ps.rec_yds, 0.0) as prior_rec_yds,
-        coalesce(ps.rush_yds, 0.0) as prior_rush_yds,
-        coalesce(ps.sacks, 0.0) as prior_sacks,
-        coalesce(ps.tfl, 0.0) as prior_tfl,
-        coalesce(ps.tackles, 0.0) as prior_tackles,
-        coalesce(ps.interceptions, 0.0) as prior_interceptions,
-        coalesce(ps.kick_points, 0.0) as prior_kick_points,
-        coalesce(ps.production_score, 0.0) as prior_production_score,
-        x.athlete_id
-    from {{ nfl_college_exits() }} as x
-    left join {{ ref('gold_player_season') }} as ps
-        on ps.athlete_id = x.athlete_id
-       and ps.season = x.season - 1
-    where x.athlete_id is not null
-      -- Avoid double-count when an NFL exit also appears as a portal departure.
-      and not exists (
-          select 1
-          from portal_departed as p
-          where p.season = x.season
-            and p.athlete_id = x.athlete_id
-      )
-
-),
-
 departed_metrics as (
 
     select
@@ -111,11 +76,7 @@ departed_metrics as (
         sum(prior_interceptions) as departed_interceptions,
         sum(prior_kick_points) as departed_kick_points,
         sum(prior_production_score) as departed_production
-    from (
-        select * from portal_departed
-        union all
-        select * from draft_departed
-    )
+    from {{ ref('gold_departures') }}
     where position_group not in ('OTHER')
       and team is not null
     group by season, team, position_group
@@ -295,7 +256,7 @@ select
                     else ' production'
                 end
             )
-            else ''
+            else '; no returning production at this unit'
         end
     ) as callout
 from enriched

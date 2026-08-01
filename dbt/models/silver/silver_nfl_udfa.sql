@@ -33,6 +33,9 @@ with typed as (
     where rookie_year is not null
       and gsis_id is not null
       and draft_number is null
+      and nullif(trim(first_name), '') is not null
+      and nullif(trim(last_name), '') is not null
+      and nullif(trim(display_name), '') is not null
 
 ),
 
