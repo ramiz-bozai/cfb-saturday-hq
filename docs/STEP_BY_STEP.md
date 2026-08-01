@@ -477,11 +477,12 @@ cards update.
 ### Genie (Season Preview)
 
 1. Use the Season Preview Genie space/agent (configured via `GENIE_SPACE_ID` in `app/app.yaml`).
-2. Build skeleton rows: `dbt run --select app_genie_team_briefs --target prod`
-3. Fill briefs: `cd app && node scripts/warm_genie_briefs.js` (needs Genie API access + MODIFY on `cfb_app.genie_team_briefs`)
-4. Team page shows stored briefs under the hero; **Ask Genie** chats live against the same space.
+2. Paste the General instructions from `docs/GENIE_SPACE_INSTRUCTIONS.md` into the space. Without them Genie guesses filter values such as `position_group = 'WR'`, which returns nothing and gets narrated as a real finding.
+3. Build skeleton rows: `dbt run --select app_genie_team_briefs --target prod`
+4. Fill briefs: `cd app && node scripts/warm_genie_briefs.js` (needs Genie API access + MODIFY on `cfb_app.genie_team_briefs`)
+5. Team page shows stored briefs as the **Booth Outlook** under the hero; **Ask the Booth** chats live against the same space.
 
-**Done when:** a team page shows a Genie bottom-line brief and Ask Genie answers a portal/continuity question.
+**Done when:** a team page shows a Booth Outlook and Ask the Booth answers a portal/continuity question — check that "which receivers is Oklahoma losing for 2026" names players rather than reporting none.
 
 ---
 

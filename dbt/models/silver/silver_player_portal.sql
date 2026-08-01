@@ -6,6 +6,9 @@
     Drop:
       - eligibility = Withdrawn (entered portal then returned / withdrew)
       - destination IS NULL (no committed school yet — not a completed move)
+      - destination = origin (entered portal, stayed put / withdrew without a new school;
+        CFBD sometimes keeps eligibility = Immediate on these, so the Withdrawn filter alone
+        is not enough)
 
     Bronze stays a faithful CFBD land; these business filters live here so every
     gold consumer (moves, continuity, ledger, roster construction) sees one grain.
@@ -30,9 +33,10 @@ with typed as (
         _ingest_mode
     from {{ ref('bronze_player_portal') }}
     where season is not null
-      and first_name is not null
-      and last_name is not null
+      and nullif(trim(first_name), '') is not null
+      and nullif(trim(last_name), '') is not null
       and destination is not null
+      and (origin is null or destination <> origin)
       and lower(coalesce(eligibility, '')) <> 'withdrawn'
 
 )

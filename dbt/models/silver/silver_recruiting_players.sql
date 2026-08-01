@@ -24,7 +24,7 @@ with typed as (
         _ingest_mode
     from {{ ref('bronze_recruiting_players') }}
     where class_year is not null
-      and player_name is not null
+      and nullif(trim(player_name), '') is not null
 
 )
 

@@ -18,6 +18,7 @@ with stats_wide as (
         season,
         athlete_id,
         team,
+        max(player_name) as player_name,
         max(position) as position,
         max(position_group) as position_group,
         max(case when category = 'passing' and stat_type = 'ATT' then stat_value end) as pass_att,
@@ -63,7 +64,13 @@ base as (
     select
         coalesce(u.season, p.season, s.season) as season,
         coalesce(u.athlete_id, p.athlete_id, s.athlete_id) as athlete_id,
-        coalesce(u.player_name, p.player_name) as player_name,
+        -- Usage/PPA cover offense; season stats cover defense/ST/OL. Never leave name null when
+        -- any source has it — stats_wide was previously omitted and left ~2/3 of rows unnamed.
+        coalesce(
+            nullif(trim(u.player_name), ''),
+            nullif(trim(p.player_name), ''),
+            nullif(trim(s.player_name), '')
+        ) as player_name,
         coalesce(u.position, p.position, s.position) as position,
         coalesce(u.position_group, p.position_group, s.position_group) as position_group,
         coalesce(u.team, p.team, s.team) as team,
@@ -110,7 +117,11 @@ base as (
 enriched as (
 
     select
-        b.*,
+        b.* except (player_name),
+        coalesce(
+            nullif(trim(b.player_name), ''),
+            nullif(trim(concat_ws(' ', rost.first_name, rost.last_name)), '')
+        ) as player_name,
         coalesce(b.position, rost.position) as position_final,
         coalesce(b.position_group, rost.position_group) as position_group_final,
         case
@@ -205,3 +216,4 @@ select
     ) as production_score,
     coalesce(recruiting_rating, cast(stars as double) / 5.0) as talent_score
 from with_team_def
+where nullif(trim(player_name), '') is not null

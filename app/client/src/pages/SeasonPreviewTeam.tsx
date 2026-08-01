@@ -53,6 +53,15 @@ type TeamData = {
     avg_rating?: number;
     class_rank?: number;
   } | null;
+  scheduleDifficulty: {
+    available?: boolean;
+    label: string;
+    tone: string;
+    tip?: string;
+    games?: number;
+    avgOppSp?: number | null;
+    toughestOpponent?: string | null;
+  } | null;
   hsRecruits: {
     player_name?: string;
     position?: string;
@@ -230,9 +239,18 @@ export default function SeasonPreviewTeam() {
             >
               {data.rosterSource === "published" ? "Published roster" : "Constructed roster"}
             </Pill>
+            {data.scheduleDifficulty?.label && (
+              <Pill
+                tone={data.scheduleDifficulty.tone || "muted"}
+                title={data.scheduleDifficulty.tip}
+              >
+                {data.scheduleDifficulty.label}
+              </Pill>
+            )}
           </div>
 
           <TeamGenieBrief team={data.team} season={data.season} />
+          <AskGenieChat team={data.team} season={data.season} />
 
           <div className="compare-callout" role="note">
             <strong>How to compare production</strong>
@@ -671,8 +689,6 @@ export default function SeasonPreviewTeam() {
               {data.qbs.length === 0 && <div className="empty">No quarterbacks on the roster snapshot.</div>}
             </div>
           </section>
-
-          <AskGenieChat team={data.team} season={data.season} />
         </>
       )}
     </div>

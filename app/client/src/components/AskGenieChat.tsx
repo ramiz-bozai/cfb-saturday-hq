@@ -26,14 +26,16 @@ export default function AskGenieChat({
   team: string;
   season: number;
 }) {
+  const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const logRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    setOpen(false);
     setMessages([]);
     setConversationId(null);
     setInput("");
@@ -42,8 +44,10 @@ export default function AskGenieChat({
   }, [team, season]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, busy]);
+    if (!open || (messages.length === 0 && !busy)) return;
+    const log = logRef.current;
+    if (log) log.scrollTop = log.scrollHeight;
+  }, [messages, busy, open]);
 
   async function pollUntilDone(convId: string, messageId: string) {
     for (let i = 0; i < 120; i++) {
@@ -56,7 +60,7 @@ export default function AskGenieChat({
       }
       await new Promise((r) => setTimeout(r, 2500));
     }
-    throw new Error("Genie timed out");
+    throw new Error("Booth timed out");
   }
 
   async function onSubmit(e: FormEvent) {
@@ -83,7 +87,7 @@ export default function AskGenieChat({
       const answer = await pollUntilDone(started.conversationId, started.messageId);
       setMessages((prev) => [...prev, { role: "assistant", text: answer }]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Ask Genie failed";
+      const msg = err instanceof Error ? err.message : "Ask the Booth failed";
       setError(msg);
       setMessages((prev) => [
         ...prev,
@@ -95,44 +99,58 @@ export default function AskGenieChat({
   }
 
   return (
-    <section className="section">
-      <h2>Ask Genie</h2>
-      <p className="lede">
-        Ask questions about {team}&apos;s {season} season preview data.
-      </p>
-      <div className="card genie-chat">
-        <div className="genie-chat-log">
-          {messages.length === 0 && (
-            <p className="meta" style={{ margin: 0 }}>
-              Example: How transfer-dependent is the offense? Who are the biggest portal arrivals?
-            </p>
-          )}
-          {messages.map((m, i) => (
-            <div key={i} className={`genie-bubble ${m.role}`}>
-              <div className="genie-bubble-role">
-                {m.role === "user" ? "You" : "Genie"}
-              </div>
-              <p>{m.text}</p>
+    <section className="section booth-ask">
+      <button
+        type="button"
+        className="booth-toggle"
+        aria-expanded={open}
+        aria-controls="booth-chat-panel"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="booth-toggle-title">Ask the Booth</span>
+        <span className="booth-toggle-hint">
+          {open ? "Hide" : "Ask a follow-up"}
+        </span>
+      </button>
+      {open && (
+        <div id="booth-chat-panel">
+          <p className="lede">
+            Ask questions about {team}&apos;s {season} season preview data.
+          </p>
+          <div className="card genie-chat">
+            <div className="genie-chat-log" ref={logRef}>
+              {messages.length === 0 && (
+                <p className="meta" style={{ margin: 0 }}>
+                  Example: How transfer-dependent is the offense? Who are the biggest portal arrivals?
+                </p>
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`genie-bubble ${m.role}`}>
+                  <div className="genie-bubble-role">
+                    {m.role === "user" ? "You" : "Booth"}
+                  </div>
+                  <p>{m.text}</p>
+                </div>
+              ))}
+              {busy && <p className="meta">Booth is thinking…</p>}
             </div>
-          ))}
-          {busy && <p className="meta">Genie is thinking…</p>}
-          <div ref={bottomRef} />
+            <form className="genie-chat-form" onSubmit={onSubmit}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={`Ask about ${team}…`}
+                disabled={busy}
+                aria-label="Ask the Booth"
+              />
+              <button type="submit" disabled={busy || !input.trim()}>
+                Send
+              </button>
+            </form>
+            {error && <p className="meta" style={{ marginTop: "0.5rem" }}>{error}</p>}
+          </div>
         </div>
-        <form className="genie-chat-form" onSubmit={onSubmit}>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask about ${team}…`}
-            disabled={busy}
-            aria-label="Ask Genie"
-          />
-          <button type="submit" disabled={busy || !input.trim()}>
-            Send
-          </button>
-        </form>
-        {error && <p className="meta" style={{ marginTop: "0.5rem" }}>{error}</p>}
-      </div>
+      )}
     </section>
   );
 }
