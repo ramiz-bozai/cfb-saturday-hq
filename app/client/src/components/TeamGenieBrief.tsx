@@ -39,7 +39,7 @@ export default function TeamGenieBrief({
     return (
       <div className="card genie-brief">
         <p className="meta" style={{ margin: 0 }}>
-          Genie brief unavailable.
+          Booth Outlook unavailable.
         </p>
       </div>
     );
@@ -49,7 +49,7 @@ export default function TeamGenieBrief({
     return (
       <div className="card genie-brief">
         <p className="meta" style={{ margin: 0 }}>
-          Loading Genie brief…
+          Loading Booth Outlook…
         </p>
       </div>
     );
@@ -59,7 +59,7 @@ export default function TeamGenieBrief({
     return (
       <div className="card genie-brief">
         <p className="meta" style={{ margin: 0 }}>
-          Genie brief not ready yet. Run{" "}
+          Booth Outlook not ready yet. Run{" "}
           <code>node scripts/warm_genie_briefs.js --team={team}</code> to generate.
         </p>
       </div>
@@ -68,7 +68,7 @@ export default function TeamGenieBrief({
 
   return (
     <div className="card genie-brief">
-      <div className="genie-brief-label">Genie bottom line</div>
+      <div className="genie-brief-label">Booth Outlook</div>
       <p className="genie-brief-text">{brief.text}</p>
     </div>
   );

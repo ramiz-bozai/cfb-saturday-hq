@@ -207,29 +207,41 @@ models:
 
   - name: gold_departures
     description: >
-      Every player a program lost for a given season - portal moves, NFL draft picks and matched
-      UDFAs - with prior-season production earned at the school being left. This is the table for
-      who a team lost and how much production departed. unit_continuity, replacement_risk and
-      portal_team_ledger aggregate from here; do not use portal_moves for losses (it omits NFL).
+      Every player a program lost for a given season, in one place - transfer portal moves, NFL
+      draft picks and matched undrafted free agents - each carrying the prior-season production
+      earned at the school being left. THIS is the table for "who did a team lose" and "how much
+      production departed". Do not use portal_moves for that: it holds portal moves only and
+      misses draft and UDFA exits, which are often the largest losses. unit_continuity,
+      replacement_risk and portal_team_ledger aggregate from here. Summing prior_* reconciles
+      with replacement_risk.departed_metric once position_group = 'OTHER' is excluded.
     columns:
       - name: season
-        description: Season the player is gone FOR. prior_* columns describe season - 1.
+        description: >
+          Season the player is gone FOR, so 2026 means absent from the 2026 roster. prior_*
+          columns describe season - 1, the player's final season at this team.
         tests: [not_null]
       - name: team
         description: The school that lost the player.
         tests: [not_null]
       - name: player_name
-        description: Full name, normalized across portal, draft and UDFA sources.
+        description: Full name, normalized across the portal, draft and UDFA sources.
         tests: [not_null]
       - name: position
         description: >
-          Normalized abbreviation via position_abbrev: QB, RB, WR, TE, OL, DL, LB, DB, K, P, LS,
-          OTHER. Use position_group = 'WR/TE' for the pass-catching unit; use position for WR vs TE.
+          Normalized abbreviation, consistent across all three sources: QB, RB, WR, TE, OL, DL,
+          LB, DB, K, P, LS, OTHER. Receivers and tight ends are separate here even though
+          position_group merges them, so filter position = 'WR' for wide receivers specifically
+          and position_group = 'WR/TE' for the pass-catching unit as a whole. Corners and
+          safeties stay merged as DB because UDFA records cannot distinguish them.
       - name: position_group
         description: >
-          Unit bucket. ONLY values: QB, RB, WR/TE, OL, DL, LB, DB, ST, OTHER. No bare 'WR' or 'TE'.
+          Unit bucket, matching every other Season Preview table. The ONLY values are QB, RB,
+          WR/TE, OL, DL, LB, DB, ST, OTHER. There is no 'WR' or 'TE' value on this column - use
+          the position column for that split.
       - name: departure_type
-        description: portal, draft, or udfa. Portal wins the dedupe when both apply.
+        description: >
+          One of portal, draft, udfa. A player who entered the portal and was also drafted counts
+          once, as portal, matching the dedupe in replacement_risk.
       - name: impact_class
         description: impact, depth, or unknown. Same gates as unit_continuity.
       - name: projected_starter
@@ -237,11 +249,19 @@ models:
       - name: talent_score
         description: 0-1 talent proxy from portal_moves or prior player_season.
       - name: destination
-        description: New school (portal) or NFL club (draft/UDFA).
+        description: >
+          The new school for portal moves, the NFL club for draft picks and UDFAs. Null when a
+          portal entrant has not committed anywhere.
+      - name: draft_round
+        description: Draft round for departure_type = draft. Null for portal and UDFA.
+      - name: overall_pick
+        description: Overall selection number for departure_type = draft. Null for portal and UDFA.
       - name: prior_rec_yds
-        description: Receiving yards in the final season at this team. Zero when none.
+        description: >
+          Receiving yards in the player's final season at this team. Zero rather than null when
+          there was no production, so sums are safe.
       - name: prior_production_score
-        description: Composite production in the final season at this team.
+        description: Composite production in the final season at this team. Good default for ranking losses.
 
   - name: gold_player_season
     description: >
@@ -259,30 +279,198 @@ models:
 
   - name: gold_portal_moves
     description: >
-      Transfer portal moves with prior production at origin and impact flags.
+      One row per transfer portal move, enriched with the player's prior-season usage and
+      production at the origin school. Use this for portal ARRIVALS (destination = a team). For
+      players a team LOST, use gold_departures instead - this table covers only the portal and
+      omits NFL draft and UDFA exits, which are frequently a team's biggest losses. Prior_*
+      columns describe the season before the move and are null when the player has no matched
+      prior-season stat line.
     columns:
+      - name: season
+        description: Season the player is transferring INTO, so 2026 covers the 2025-26 portal cycle.
       - name: first_name
         tests: [not_null]
       - name: last_name
         tests: [not_null]
+      - name: position
+        description: >
+          Raw position abbreviation (WR, TE, CB, EDGE, ...). Use this only when a question is
+          genuinely about a single position; unit-level questions belong on position_group.
+      - name: position_group
+        description: >
+          Unit bucket. The ONLY values are QB, RB, WR/TE, OL, DL, LB, DB, ST, OTHER. Receivers and
+          tight ends share one bucket, so filter position_group = 'WR/TE' for either; there is no
+          'WR' or 'TE' value. Likewise OL covers every offensive line position, DL covers ends and
+          tackles and edge, DB covers corners and safeties, and ST covers kickers, punters,
+          returners and long snappers.
+      - name: origin
+        description: School the player left. Null when the origin is unknown or non-FBS.
+      - name: destination
+        description: School the player joined. Null while the player is uncommitted or leaves FBS.
+      - name: eligibility
+        description: One of Immediate, PendingAppeal, TBD.
+      - name: impact_class
+        description: >
+          One of impact, depth, unknown. Impact means the move projects to change the two-deep;
+          unknown means there was neither prior production nor a talent rating to judge on, so it
+          is not the same as depth.
+      - name: projected_starter
+        description: Boolean flag from the documented usage/production/talent gates, not a depth chart.
+      - name: prior_rec_yds
+        description: Receiving yards the season before the move. Null when no prior stat line matched.
 
   - name: gold_roster_snapshot
     description: >
-      Projected roster for the preview season after portal and NFL exits.
+      Player-level roster for a target season, one row per player per team. Prefers a published
+      CFBD roster; before camp CFBD usually has none, so the roster is constructed from the prior
+      season minus portal departures and NFL exits, plus portal arrivals. This table holds every
+      FBS team, so anti-joins looking for who LEFT a team must constrain team on both sides -
+      otherwise a departed player still matches at his new school.
     columns:
+      - name: season
+        description: Season the roster describes. Prior_* columns come from season - 1.
       - name: first_name
         tests: [not_null]
       - name: last_name
         tests: [not_null]
+      - name: position_group
+        description: >
+          Unit bucket. The ONLY values are QB, RB, WR/TE, OL, DL, LB, DB, ST, OTHER. Receivers and
+          tight ends share the WR/TE bucket; there is no 'WR' or 'TE' value.
+      - name: roster_source
+        description: >
+          published when CFBD has posted a roster for this season, constructed when it was carried
+          forward from the prior season. Constructed rosters keep players who simply exhausted
+          eligibility, because only portal moves and NFL exits are subtracted.
+      - name: is_transfer_addition
+        description: True for incoming portal arrivals on a constructed roster; always false when published.
+      - name: class_year
+        description: Eligibility year as published. Null for constructed-roster transfer arrivals.
+
+  - name: gold_unit_continuity
+    description: >
+      Continuity grade per team, position group and season. The right table for how much of a unit
+      returns and how much churned. Loss-side columns aggregate from gold_departures (portal plus
+      NFL draft and UDFA); only players who quietly exhausted eligibility are missing, because no
+      source records them. For the names behind these counts, use gold_departures.
+    columns:
+      - name: position_group
+        description: >
+          Unit bucket. The ONLY values are QB, RB, WR/TE, OL, DL, LB, DB, ST, OTHER. Filter
+          position_group = 'WR/TE' for any receiver or tight end question; there is no 'WR' or 'TE'.
+      - name: production_returning_pct
+        description: Share of the unit's prior production returning, 0 to 1.
+      - name: usage_returning_pct
+        description: Share of the unit's prior usage returning, 0 to 1.
+      - name: transfer_departures
+        description: >
+          Players who left the unit, counting portal moves AND NFL draft and UDFA exits despite
+          the column name. Matches the row count in gold_departures for the same team, season and
+          position_group. Additions are portal only, because there is no other way in.
+      - name: transfer_additions
+        description: Players who joined the unit via the portal.
+      - name: continuity_score
+        description: 0-100 blend of returning production, usage and headcount. Higher is more continuity.
+      - name: replacement_risk
+        description: One of high, elevated, manageable.
+      - name: experience
+        description: Season the returning production is measured from, not a count of years.
+
+  - name: gold_replacement_risk
+    description: >
+      Replacement-risk callouts for FBS units that lost meaningful production (silver_team_seasons
+      gate, target or prior season). Only units that trip a threshold appear, so an absent
+      team-unit row means no callout, not zero departures - use unit_continuity for the full
+      picture. best_returner is null when the unit has no non-transfer players left; the callout
+      then ends with "; no returning production at this unit".
+    columns:
+      - name: position_group
+        description: >
+          Unit bucket. The ONLY values are QB, RB, WR/TE, OL, DL, LB, DB, ST, OTHER. There is no
+          'WR' or 'TE' value.
+      - name: replacement_risk
+        description: One of high, elevated, manageable.
+      - name: best_returner
+        description: >
+          Top non-transfer player still on the unit. Null when the unit is transfer-only; that is
+          intentional, not missing data.
+      - name: metric_name
+        description: >
+          Which stat the callout is measured in, chosen per unit: pass_att for QB, rec_yds for
+          WR/TE, rush_yds for RB, sacks for DL, tackles or interceptions for LB and DB,
+          kick_points for ST, production_score as the fallback.
+      - name: departed_metric
+        description: Amount of metric_name lost to departures.
+      - name: prior_metric
+        description: The unit's total for metric_name in the prior season.
+      - name: departed_share
+        description: departed_metric divided by prior_metric, 0 to 1.
+      - name: callout
+        description: Prebuilt display sentence. Prefer the numeric columns for analysis.
 
   - name: gold_qb_room
     description: >
-      QB room composition for Season Preview.
+      One row per quarterback on the target-season roster, with career and prior-season passing
+      history plus the room classification repeated on every row of a team.
     columns:
       - name: first_name
         tests: [not_null]
       - name: last_name
         tests: [not_null]
+      - name: qb_rank
+        description: Ordering within the room, 1 = projected front of the room. Not a national rank.
+      - name: is_returning_starter
+        description: True when the QB started for this same team the prior season.
+      - name: qb_class
+        description: >
+          Per-quarterback label. One of Proven elite starter, Proven average starter, Experienced
+          but limited, High-upside transfer, Unproven competition, Major uncertainty.
+      - name: room_class
+        description: >
+          Team-level room label, identical on every QB row for that team. One of Proven elite
+          starter, Proven average starter, High-upside transfer, Unproven competition, Major
+          uncertainty.
+      - name: roster_source
+        description: published or constructed, matching roster_snapshot.
+
+  - name: gold_transfer_dependency
+    description: >
+      Team-season summary of how much a team leans on incoming transfers, overall and split by
+      offense and defense. Offense covers QB, RB, WR/TE and OL; defense covers DL, LB and DB.
+    columns:
+      - name: transfer_dependency_score
+        description: 0-100 composite. Higher means more of the projected contribution comes from transfers.
+      - name: pct_usage_from_transfers
+        description: Share of projected usage supplied by incoming transfers, 0 to 1.
+      - name: critical_units_on_transfers
+        description: Count of position groups whose projected starters are transfers.
+
+  - name: gold_returning_production_team
+    description: >
+      Team-season returning production. Uses CFBD's published returning-production figures when
+      the roster is published and CFBD has a row, otherwise computes them from the constructed
+      roster.
+    columns:
+      - name: source
+        description: cfbd when taken from CFBD's returning-production endpoint, computed otherwise.
+      - name: percent_ppa
+        description: Share of prior-season PPA returning, 0 to 1.
+      - name: conference
+        description: Conference as of this season, before any later realignment.
+
+  - name: gold_portal_team_ledger
+    description: >
+      Team-season roster ledger rolled up from unit_continuity - impact and depth players in and
+      out, net production and net talent. Additions are portal only; losses include NFL draft and
+      UDFA exits as well as portal departures (talent-out aggregates from gold_departures).
+      Players who exhausted eligibility are not counted, because no source records them.
+    columns:
+      - name: impact_additions
+        description: Incoming transfers classified impact by portal_moves.impact_class.
+      - name: impact_losses
+        description: Departing players classified impact, whether they left via the portal or the NFL.
+      - name: net_production_gained
+        description: Prior production added by arrivals minus prior production lost to departures.
 
   - name: mv_season_preview_team
     description: >
@@ -294,4 +482,6 @@ models:
     description: >
       Databricks metric view for Season Preview unit continuity (Genie). Grain is team x
       position_group x season. Joins returning_production_team for conference and replacement_risk
-      for departed_share when a callout exists.
+      for departed_share when a callout exists. position_group takes only QB, RB, WR/TE, OL, DL,
+      LB, DB, ST, OTHER - receivers and tight ends share the WR/TE bucket, so there is no 'WR' or
+      'TE' value to filter on.
